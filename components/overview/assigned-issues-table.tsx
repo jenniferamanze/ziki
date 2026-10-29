@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Severity, Status } from "@prisma/client";
 import { OverviewVote } from "@/components/overview/overview-vote";
+import { IssueRowZone } from "@/components/issue-row-zone";
 import { formatIssueNumber } from "@/lib/issue-number";
 import { issuePath } from "@/lib/issue-ref";
 import { formatShortAge } from "@/lib/format";
@@ -19,6 +20,10 @@ export type OverviewAssignedIssue = {
   commentCount: number;
   createdAt: string;
   stage: IssueStage | null;
+};
+
+export type IssueHandOffConfig = {
+  presetActions: string[];
 };
 
 function priorityTone(severity: Severity): {
@@ -70,7 +75,13 @@ function typeIconPath(typeName: string | null): string {
   return "M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5";
 }
 
-export function AssignedIssuesTable({ issues }: { issues: OverviewAssignedIssue[] }) {
+export function AssignedIssuesTable({ 
+  issues, 
+  handOffs 
+}: { 
+  issues: OverviewAssignedIssue[]; 
+  handOffs?: Record<string, IssueHandOffConfig>;
+}) {
   const countLabel = issues.length === 1 ? "1 issue" : `${issues.length} issues`;
 
   return (
@@ -120,7 +131,8 @@ export function AssignedIssuesTable({ issues }: { issues: OverviewAssignedIssue[
                 const stage = stageTone(issue.stage);
                 const statusOpen =
                   issue.status === "open" || issue.status === "in_progress";
-                return (
+                const config = handOffs?.[issue.id];
+                const rowContent = (
                   <li
                     key={issue.id}
                     className={`flex items-center gap-4 px-4 py-3.5 ${
@@ -223,6 +235,20 @@ export function AssignedIssuesTable({ issues }: { issues: OverviewAssignedIssue[
                     </span>
                   </li>
                 );
+                
+                if (config) {
+                  return (
+                    <IssueRowZone
+                      key={issue.id}
+                      itemId={issue.id}
+                      itemTitle={issue.title}
+                      presetActions={config.presetActions}
+                    >
+                      {rowContent}
+                    </IssueRowZone>
+                  );
+                }
+                return rowContent;
               })}
             </ul>
           )}

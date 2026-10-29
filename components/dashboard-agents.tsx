@@ -36,11 +36,18 @@ const statusMeta: Record<
 
 export function DashboardAgents({
   initial,
+  handOffs,
 }: {
   initial: DashboardAgentView[];
+  handOffs?: { agentId: string; status: string; progressNote: string | null; itemTitle: string; request: string }[];
 }) {
   const [agents, setAgents] = useState(initial);
   const [open, setOpen] = useState(true);
+
+  // Build a map of agentId -> active hand-off progress note.
+  const handOffByAgent = new Map(
+    (handOffs ?? []).filter((h) => h.status !== "released" && h.status !== "completed").map((h) => [h.agentId, h]),
+  );
 
   // Section-only refresh: the cards above are not re-fetched, so the page
   // never jumps while someone is reading it.
@@ -137,13 +144,16 @@ export function DashboardAgents({
                 </thead>
                 <tbody className="divide-y divide-zk-divider">
                   {agents.map((agent) => {
-                    const meta = statusMeta[agent.status];
+                    const handOff = handOffByAgent.get(agent.id);
+                    const isWorking = handOff ? "working" : agent.status;
+                    const handOffMeta = statusMeta[isWorking as keyof typeof statusMeta];
+                    const activity = handOff?.progressNote ?? agent.activity;
                     return (
                       <tr key={agent.id} className="transition hover:bg-zk-tint/40">
                         <td className="px-5 py-3.5 font-semibold text-zk-text">
                           <span className="flex items-center gap-2">
                             <span
-                              className={`h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`}
+                              className={`h-2.5 w-2.5 shrink-0 rounded-full ${handOffMeta.dot}`}
                               aria-hidden="true"
                             />
                             <span className="truncate">{agent.name}</span>
@@ -152,13 +162,18 @@ export function DashboardAgents({
                                 {agent.model}
                               </span>
                             ) : null}
+                            {handOff ? (
+                              <span className="ml-1 text-[10px] text-zk-accent" title="Has an active hand-off">
+                                ★
+                              </span>
+                            ) : null}
                           </span>
                         </td>
-                        <td className={`whitespace-nowrap px-5 py-3.5 font-medium ${meta.text}`}>
-                          {meta.label}
+                        <td className={`whitespace-nowrap px-5 py-3.5 font-medium ${handOffMeta.text}`}>
+                          {handOffMeta.label}
                         </td>
                         <td className="max-w-[22rem] truncate px-5 py-3.5 text-zk-text2">
-                          {agent.activity}
+                          {activity}
                         </td>
                         <td className="whitespace-nowrap px-5 py-3.5 text-right font-mono text-xs text-zk-muted">
                           {agent.lastSeenAt ? (

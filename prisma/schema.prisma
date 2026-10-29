@@ -248,6 +248,7 @@ model User {
   agentQuestions        AgentQuestion[]
   agentMessagesSent     AgentMessage[]
   challengesOpened      AgentChallenge[] @relation("ChallengeOpener")
+  handOffsOpened        HandOff[] @relation("HandOffOpener")
   tenantInvitesSent     TenantInvite[]
   membershipChangesMade MembershipChange[] @relation("MembershipChangeActor")
   membershipChangesReceived MembershipChange[] @relation("MembershipChangeTarget")
@@ -907,6 +908,7 @@ model Agent {
   inboxItems           AgentInboxItem[]
   goalAllocations      GoalAllocation[]
   recordedMistakes     AgentMistake[]
+  handOffs             HandOff[]
 
   @@unique([ownerUserId, defaultProjectId])
   @@index([tenantId])
@@ -1456,6 +1458,34 @@ model AgentChallenge {
 
   @@index([agentId, status])
   @@index([bugId])
+  @@index([status])
+}
+
+/// A person handing work to their agent ("Point and hand off"). Delivered to
+/// the agent's inbox; the agent reports progress back.
+model HandOff {
+  id          String   @id @default(cuid())
+  agentId     String
+  openedById  String
+  /// "points" or "assigned_issue".
+  itemType    String
+  /// The id of the item being handed off.
+  itemId      String
+  /// Human-readable title of the item, e.g. "Points" or issue title.
+  itemTitle   String
+  /// What the person is asking the agent to do with this item.
+  request     String
+  /// offered | accepted | in_progress | completed | released
+  status      String   @default("offered")
+  /// The agent's latest progress note.
+  progressNote String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  openedBy    User     @relation("HandOffOpener", fields: [openedById], references: [id], onDelete: Cascade)
+
+  @@index([agentId, status])
+  @@index([openedById])
   @@index([status])
 }
 

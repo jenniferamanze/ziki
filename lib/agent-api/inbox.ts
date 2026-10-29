@@ -23,7 +23,7 @@ import {
  * `(agentId, createdAt, id)` instead of a scan of every event.
  */
 
-export const INBOX_KINDS = ["offer", "reply", "mention", "answer", "message", "approval", "claim", "challenge"] as const;
+export const INBOX_KINDS = ["offer", "reply", "mention", "answer", "message", "approval", "claim", "challenge", "handoff"] as const;
 export type InboxKind = (typeof INBOX_KINDS)[number];
 
 type Db = typeof prisma | Prisma.TransactionClient;

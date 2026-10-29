@@ -30,6 +30,7 @@ import {
 import { formatPoints, TARGET_POINTS } from "@/lib/points/rules";
 import { prisma } from "@/lib/prisma";
 import { openIssueStages } from "@/lib/issue-stage";
+import { getHandOffsOpenedBy } from "@/app/(app)/dashboard/actions";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -214,6 +215,36 @@ export default async function DashboardPage() {
     }
   }
 
+  // Fetch hand-offs opened by the user for "Point and hand off" labels.
+  let handOffs: { id: string; agentId: string; itemType: string; itemId: string; itemTitle: string; request: string; status: string; progressNote: string | null; createdAt: Date; updatedAt: Date; agent: { id: string; name: string } }[] = [];
+  try {
+    handOffs = await getHandOffsOpenedBy();
+  } catch (error) {
+    console.error("[dashboard] hand-offs load failed", error);
+  }
+
+  const toGo = Math.max(0, TARGET_POINTS - pointsThisWeek(historyEntries, now));
+  const statHandOffs: Record<string, { itemId: string; presetActions: string[] }> = {
+    Points: {
+      itemId: "points",
+      presetActions: [
+        `Find me work worth ${toGo} points`,
+        "Review my recent validations",
+        "Check my blockers",
+      ],
+    },
+  };
+  const issueHandOffs: Record<string, { presetActions: string[] }> = {};
+  for (const issue of assignedIssues) {
+    issueHandOffs[issue.id] = {
+      presetActions: [
+        "Investigate and draft a fix plan",
+        "Check it still happens on the latest build",
+        "Ask the reporter for what's missing",
+      ],
+    };
+  }
+
   const agents: DashboardAgentView[] = agentRows.map((agent) => ({
     ...agent,
     lastSeenAt: agent.lastSeenAt ? agent.lastSeenAt.toISOString() : null,
@@ -269,15 +300,15 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <OverviewStatCards stats={stats} />
+      <OverviewStatCards stats={stats} handOffs={statHandOffs} />
 
       {weather ? <WeatherCard weather={weather} /> : null}
 
-      <AssignedIssuesTable issues={assignedIssues} />
+      <AssignedIssuesTable issues={assignedIssues} handOffs={issueHandOffs} />
 
       <PointsChart entries={chartEntries} nowIso={now.toISOString()} />
 
-      <DashboardAgents initial={agents} />
+      <DashboardAgents initial={agents} handOffs={handOffs} />
     </div>
   );
 }
