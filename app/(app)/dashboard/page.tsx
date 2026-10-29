@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { newIssueHref } from "@/lib/reported-from";
+import { currentWeatherFor } from "@/lib/weather/current";
+import { WeatherCard } from "@/components/weather/weather-card";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
 import { bugInTenant, currentTenantIdFor } from "@/lib/tenant-context";
@@ -232,6 +234,8 @@ export default async function DashboardPage() {
   }));
 
   const name = firstName(user.name, user.email);
+  // #weather: one card; a lookup failure never blocks the dashboard.
+  const weather = await currentWeatherFor(user.id).catch(() => null);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -266,6 +270,8 @@ export default async function DashboardPage() {
       </div>
 
       <OverviewStatCards stats={stats} />
+
+      {weather ? <WeatherCard weather={weather} /> : null}
 
       <AssignedIssuesTable issues={assignedIssues} />
 

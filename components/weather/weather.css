@@ -1,0 +1,21 @@
+/* Ziki weather (#weather): the living sky. Every motion stops for reduced motion. */
+@keyframes zw-drift { from { transform: translateX(-18px); } to { transform: translateX(18px); } }
+@keyframes zw-rain { from { transform: translateY(-30px); opacity: 0; } 20% { opacity: 1; } to { transform: translateY(150px); opacity: 0; } }
+@keyframes zw-wind { from { transform: translateX(-120px); opacity: 0; } 30% { opacity: .9; } to { transform: translateX(260px); opacity: 0; } }
+@keyframes zw-glow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes zw-arc { from { stroke-dashoffset: 900; } to { stroke-dashoffset: 0; } }
+@keyframes zw-pop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.zw-sky { position: relative; height: 380px; border-radius: 24px; overflow: hidden; transition: background-color 1.2s ease; }
+.zw-sky svg.zw-layer { position: absolute; inset: 0; width: 100%; height: 100%; }
+.zw-cloud { position: absolute; width: 190px; height: 104px; padding: 0; border: 0; background: transparent; cursor: pointer; animation: zw-drift var(--zw-d, 30s) ease-in-out infinite alternate; }
+.zw-cloud:focus-visible { outline: 3px solid var(--zk-text); outline-offset: 4px; border-radius: 40px; }
+.zw-drop { animation: zw-rain 1.6s linear infinite; }
+.zw-gust { animation: zw-wind var(--zw-w, 3.2s) ease-in infinite; }
+.zw-sun { animation: zw-glow 6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.zw-rainbow { stroke-dasharray: 900; animation: zw-arc 2.4s ease-out both; }
+.zw-pop { animation: zw-pop .2s ease-out; }
+.zw-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: rgb(255 255 255 / .92); color: #15121f; font: inherit; font-size: 14px; font-weight: 700; }
+button.zw-pill { cursor: pointer; }
+button.zw-pill:focus-visible { outline: 3px solid var(--zk-accent); outline-offset: 2px; }
+@media (max-width: 639px) { .zw-sky { height: 300px; } .zw-cloud { transform: scale(.75); } }
+@media (prefers-reduced-motion: reduce) { .zw-cloud, .zw-drop, .zw-gust, .zw-sun, .zw-rainbow, .zw-pop { animation: none; } }

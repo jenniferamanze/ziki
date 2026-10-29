@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "seed:showcase": "tsx prisma/seed-showcase.ts",
     "db:reset": "prisma migrate reset",
     "postinstall": "prisma generate",
     "e2e": "playwright test",

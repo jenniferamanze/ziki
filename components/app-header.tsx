@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { WeatherChip } from "@/components/weather/weather-chip";
 import type { AgentLevel } from "@prisma/client";
 import { SignOutButton } from "@/components/sign-out-button";
 import { WorkspaceSwitcher, type WorkspaceChoice } from "@/components/workspace-switcher";
@@ -555,6 +556,7 @@ export function AppHeader({
           ) : null}
 
           {/* The bell sits last, right after the points. */}
+          <WeatherChip />
           <NotificationsBell key={`${userId}:${activeTenantId}:${pathname}`} unreadCount={unreadCount} active={isNavItemActive(pathname, "/notifications")} />
         </div>
       </div>

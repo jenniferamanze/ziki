@@ -179,3 +179,31 @@ describe("middleware routing (#348)", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 });
+
+describe("showcase demo and public weather", () => {
+  it("lets anyone in without signing in, and sends sign-in pages to the dashboard", () => {
+    vi.stubEnv("ZIKI_DEMO", "true");
+    try {
+      const page = runMiddleware(createMockReq({ pathname: "/escalations" }));
+      expect(page.headers.get("location")).toBeNull();
+      const login = runMiddleware(createMockReq({ pathname: "/login" }));
+      expect(new URL(login.headers.get("location")!).pathname).toBe("/dashboard");
+      const home = runMiddleware(createMockReq({ pathname: "/" }));
+      expect(new URL(home.headers.get("location")!).pathname).toBe("/dashboard");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("keeps weather pages behind sign-in unless they are switched on", () => {
+    expect(isPublicPath("/weather/ziki/ziki")).toBe(false);
+    vi.stubEnv("WEATHER_PUBLIC", "true");
+    try {
+      expect(isPublicPath("/weather/ziki/ziki")).toBe(true);
+      expect(isPublicPath("/weather/ziki/ziki/badge.svg")).toBe(true);
+      expect(isPublicPath("/weatherx")).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});

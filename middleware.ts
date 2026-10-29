@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import authConfig from "@/auth.config";
 import { isLinkPreviewBot } from "@/lib/link-preview";
 import { BASE_PATH, toAppPath } from "@/lib/base-path";
+import { isDemoMode, isWeatherPublic } from "@/lib/demo-mode";
 
 /**
  * Edge-only auth wrapper — initialized from auth.config (no Prisma/bcrypt).
@@ -52,7 +53,9 @@ export function isPublicPath(
     // session; each route rejects a request without one.
     pathWithoutBase.startsWith("/api/v1/") ||
     pathWithoutBase.startsWith("/_next") ||
-    pathWithoutBase === "/favicon.ico"
+    pathWithoutBase === "/favicon.ico" ||
+    // A project's weather page, badge and share card, when switched on.
+    ((pathWithoutBase === "/weather" || pathWithoutBase.startsWith("/weather/")) && isWeatherPublic())
   );
 }
 
@@ -83,6 +86,16 @@ export default auth((req) => {
   const isAuthPage =
     pathWithoutBase.startsWith("/login") || pathWithoutBase.startsWith("/signup");
   const isPublic = isPublicPath(pathWithoutBase, req.headers.get("user-agent"));
+
+  // Showcase demo: no sign-in at all, and the sign-in pages go to the dashboard.
+  if (isDemoMode()) {
+    if (isAuthPage || pathWithoutBase === "/" || pathWithoutBase === "") {
+      return NextResponse.redirect(
+        new URL(BASE_PATH ? `${BASE_PATH}/dashboard` : "/dashboard", req.nextUrl.origin),
+      );
+    }
+    return NextResponse.next();
+  }
 
   if (!isLoggedIn && !isPublic) {
     const url = new URL(

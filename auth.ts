@@ -14,6 +14,8 @@ import { TwoFactorInvalidError, TwoFactorRequiredError } from "@/lib/auth-errors
 import { isTwoFactorEnabled, verifySecondFactor } from "@/lib/two-factor";
 import { googleSignInBlockedByTwoFactor } from "@/lib/google-two-factor";
 import { acceptedSessionRefresh } from "@/lib/session-refresh";
+import { isDemoMode } from "@/lib/demo-mode";
+import { demoSession } from "@/lib/demo-session";
 
 const googleClientId = cleanEnv(
   process.env.GOOGLE_CLIENT_ID || process.env.AUTH_GOOGLE_ID,
@@ -42,7 +44,7 @@ if (process.env.NODE_ENV !== "test") {
   }
 }
 
-export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
+const nextAuth = NextAuth({
   ...authConfig,
   providers: [
     ...(googleConfigured
@@ -258,3 +260,11 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
     },
   },
 });
+
+export const { handlers, signIn, signOut, unstable_update: updateSession } = nextAuth;
+
+/**
+ * The session for server code. In the showcase demo (ZIKI_DEMO=true) there is
+ * no sign-in: every request is the seeded demo person (lib/demo-session.ts).
+ */
+export const auth = (isDemoMode() ? demoSession : nextAuth.auth) as typeof nextAuth.auth;
