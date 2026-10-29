@@ -264,7 +264,7 @@ const nextAuth = NextAuth({
 export const { handlers, signIn, signOut, unstable_update: updateSession } = nextAuth;
 
 /**
- * The session for server code. In the showcase demo (ZIKI_DEMO=true) there is
+ * The session for server code. In the showcase demo (lib/demo-mode.ts) there is
  * no sign-in: every request is the seeded demo person (lib/demo-session.ts).
  */
 export const auth = (isDemoMode() ? demoSession : nextAuth.auth) as typeof nextAuth.auth;

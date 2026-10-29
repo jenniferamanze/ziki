@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { SHOWCASE_BUILD } from "@/lib/demo-mode";
 
-/** Webhook deliveries and platform sweeps must actually get scheduled (#583, #647). */
-describe("vercel.json cron (#583, #647)", () => {
+/**
+ * Webhook deliveries and platform sweeps must actually get scheduled (#583, #647).
+ * The showcase build (demo/showcase) drops them: Vercel's free plan only allows
+ * daily crons, and the demo needs neither.
+ */
+describe.skipIf(SHOWCASE_BUILD)("vercel.json cron (#583, #647)", () => {
   const config = JSON.parse(readFileSync("vercel.json", "utf8")) as {
     crons?: { path: string; schedule: string }[];
   };

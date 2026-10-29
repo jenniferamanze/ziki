@@ -1,11 +1,12 @@
 /**
- * Showcase demo data (ZIKI_DEMO=true deployments only): a small, lively
+ * Showcase demo data (showcase deployments only): a small, lively
  * workspace so the weather, "Why?" and hand-off features have something real
- * to show. Run with `pnpm seed:showcase`. It refuses to run unless ZIKI_DEMO
- * is true, and does nothing if the workspace exists unless SHOWCASE_RESET=true.
+ * to show. Run with `pnpm seed:showcase`. It refuses to run unless demo mode
+ * is on (lib/demo-mode.ts), and does nothing if the workspace exists unless SHOWCASE_RESET=true.
  * Dates are relative to now, so re-run with SHOWCASE_RESET=true to refresh.
  */
 import { PrismaClient, type Severity, type Status } from "@prisma/client";
+import { isDemoMode } from "../lib/demo-mode";
 
 const prisma = new PrismaClient();
 const HOUR = 60 * 60 * 1000;
@@ -29,8 +30,8 @@ async function person(email: string, name: string) {
 }
 
 async function main() {
-  if (process.env.ZIKI_DEMO?.trim().toLowerCase() !== "true") {
-    console.log("Showcase seed skipped: set ZIKI_DEMO=true (demo deployments only).");
+  if (!isDemoMode()) {
+    console.log("Showcase seed skipped: demo mode is off (ZIKI_DEMO=false).");
     return;
   }
   const existing = await prisma.tenant.findUnique({ where: { slug: TENANT }, select: { id: true } });

@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "prisma generate && prisma migrate deploy && next build --webpack && tsx prisma/seed-showcase.ts",
+  "buildCommand": "prisma generate && prisma migrate deploy && next build --webpack && (tsx prisma/seed-showcase.ts || echo \"WARNING: showcase seed failed, see the error above. The site still deploys.\")",
   "crons": [
     { "path": "/api/v1/webhooks/dispatch", "schedule": "0 0 * * *" },
     { "path": "/api/internal/cron", "schedule": "0 0 * * *" }

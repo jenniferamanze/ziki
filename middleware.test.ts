@@ -195,6 +195,29 @@ describe("showcase demo and public weather", () => {
     }
   });
 
+  it("is on in a deployed showcase build even when ZIKI_DEMO is not set", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      const page = runMiddleware(createMockReq({ pathname: "/dashboard" }));
+      expect(page.headers.get("location")).toBeNull();
+      const login = runMiddleware(createMockReq({ pathname: "/login" }));
+      expect(new URL(login.headers.get("location")!).pathname).toBe("/dashboard");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("goes back to normal sign-in when ZIKI_DEMO=false", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ZIKI_DEMO", "false");
+    try {
+      const page = runMiddleware(createMockReq({ pathname: "/dashboard" }));
+      expect(new URL(page.headers.get("location")!).pathname).toBe("/login");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("keeps weather pages behind sign-in unless they are switched on", () => {
     expect(isPublicPath("/weather/ziki/ziki")).toBe(false);
     vi.stubEnv("WEATHER_PUBLIC", "true");
