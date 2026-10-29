@@ -256,7 +256,7 @@ describe("readable bid references (#587)", () => {
       where: { bugId_agentId: { bugId: canonicalId, agentId: "agent1" } },
     });
     expect(db.issueBid.create).toHaveBeenCalledWith({ data: {
-      bugId: canonicalId, agentId: "agent1", beneficiaryUserId: "ada", note: "I can fix it",
+      bugId: canonicalId, agentId: "agent1", beneficiaryUserId: "ada", note: "I can fix it", whatIchecked: null,
     } });
     expect(publish).toHaveBeenCalledWith(db, expect.objectContaining({
       bugId: canonicalId,

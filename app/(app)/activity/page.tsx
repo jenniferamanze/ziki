@@ -9,6 +9,7 @@ import { statusLabel } from "@/lib/labels";
 import { LocalTime } from "@/components/local-time";
 import { IssueApprovalBanner } from "@/components/issue-approval-banner";
 import { EscalationTypeBadge, QuickResolveButtons } from "@/app/(app)/escalations/escalation-controls";
+import { WhyDialog } from "@/components/why-dialog";
 
 export const metadata = { title: "Human–Agent Activity & Approvals" };
 const panel = "space-y-4 rounded-2xl border border-zk-border bg-zk-surface p-4 sm:p-6";
@@ -86,15 +87,29 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
     <section id="work" className={panel} aria-labelledby="work-heading">
       <h2 id="work-heading" className="text-xl font-bold">Work History</h2>
       {!data.work.items.length ? <p className="text-sm text-zk-muted">No claims on this page.</p> : null}
-      {data.work.items.map((claim) => <article key={claim.id} className="space-y-2 border-t border-zk-border pt-3 text-sm">
-        <p><strong>{claim.agent.name}</strong> · Claim: {claim.status} · Issue: {statusLabel[claim.bug.status]}</p>
-        <IssueLinks bug={claim.bug} />
-        <p>Recorded <LocalTime date={claim.createdAt} /></p>
-        {claim.waitingOnOwnerSince && !claim.releasedAt ? <p className="text-zk-warn-fg">Blocked: waiting for owner guidance since <LocalTime date={claim.waitingOnOwnerSince} />. Claim clocks are paused.</p> : null}
-        {claim.deliverBy ? <p>{claim.bug.pullRequestUrl || claim.releasedAt ? "Recorded deadline" : "Delivery deadline"}: <LocalTime date={claim.deliverBy} /></p> : null}
-        {claim.lastHeartbeatAt ? <p>Last heartbeat: <LocalTime date={claim.lastHeartbeatAt} /></p> : null}
-        {claim.releaseReason ? <p>Release reason: {claim.releaseReason}</p> : null}
-      </article>)}
+      {data.work.items.map((claim) => (
+        <article key={claim.id} className="space-y-2 border-t border-zk-border pt-3 text-sm">
+          <p>
+            <strong>{claim.agent.name}</strong> · Claim: {claim.status} · Issue: {statusLabel[claim.bug.status]}
+            {claim.releasedAt && (
+              <WhyDialog
+                actionType="claim_release"
+                actionId={claim.id}
+                agentId={claim.agentId}
+                bugId={claim.bug.id}
+              >
+                why?
+              </WhyDialog>
+            )}
+          </p>
+          <IssueLinks bug={claim.bug} />
+          <p>Recorded <LocalTime date={claim.createdAt} /></p>
+          {claim.waitingOnOwnerSince && !claim.releasedAt ? <p className="text-zk-warn-fg">Blocked: waiting for owner guidance since <LocalTime date={claim.waitingOnOwnerSince} />. Claim clocks are paused.</p> : null}
+          {claim.deliverBy ? <p>{claim.bug.pullRequestUrl || claim.releasedAt ? "Recorded deadline" : "Delivery deadline"}: <LocalTime date={claim.deliverBy} /></p> : null}
+          {claim.lastHeartbeatAt ? <p>Last heartbeat: <LocalTime date={claim.lastHeartbeatAt} /></p> : null}
+          {claim.releaseReason ? <p>Release reason: {claim.releaseReason}</p> : null}
+        </article>
+      ))}
       <Pages params={params} stream="work" next={data.work.next} />
     </section>
 

@@ -38,6 +38,8 @@ export const TEST_VERDICT_NOTES_MAX = 2000;
 export const testVerdictBodySchema = z.object({
   goodToMerge: z.boolean(),
   notes: z.string().trim().max(TEST_VERDICT_NOTES_MAX).optional(),
+  /** What the agent checked before testing, shown to anyone who asks "why?". */
+  whatIchecked: z.string().trim().max(2000).optional(),
   /** The person the agent acts for; defaults to its owner. */
   onBehalfOfUserId: z.string().trim().min(1).max(191).optional(),
   /**
@@ -219,6 +221,7 @@ export async function submitTestVerdict(
           data: {
             goodToMerge: body.goodToMerge,
             notes: body.notes || null,
+            whatIchecked: body.whatIchecked || null,
             onBehalfOfUserId,
             pullRequestUrl,
             headSha,
@@ -265,6 +268,7 @@ export async function submitTestVerdict(
           onBehalfOfUserId,
           goodToMerge: body.goodToMerge,
           notes: body.notes || null,
+          whatIchecked: body.whatIchecked || null,
           pullRequestUrl,
           headSha,
         },

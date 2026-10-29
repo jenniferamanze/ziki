@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
     const scope = await issueProject(agent, request.nextUrl.searchParams, parsed.data.projectId);
     try {
-      const bid = await placeBid(agent, scope.projectId, id, parsed.data.note);
+      const bid = await placeBid(agent, scope.projectId, id, parsed.data.note, parsed.data.whatIchecked);
       return NextResponse.json({
         bid_id: bid.id,
         status: "open",

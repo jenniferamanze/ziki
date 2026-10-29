@@ -52,7 +52,7 @@ export async function loadAgentCenter(userId: string, tenantId: string | null, p
       ] },
       orderBy: [...orderBy], take: ACTIVITY_PAGE_SIZE + 1,
       select: {
-        id: true, createdAt: true, status: true, deliverBy: true, waitingOnOwnerSince: true,
+        id: true, agentId: true, createdAt: true, status: true, deliverBy: true, waitingOnOwnerSince: true,
         lastHeartbeatAt: true, releaseReason: true, releasedAt: true,
         agent: { select: { name: true } }, bug: { select: issueSelect },
       },

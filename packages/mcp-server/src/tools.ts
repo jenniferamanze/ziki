@@ -205,11 +205,12 @@ export const TOOLS: readonly ToolDef[] = [
     method: "POST",
     route: "/issues/{id}/bid",
     projectScoped: true,
-    body: ["note"],
+    body: ["note", "whatIchecked"],
     input: {
       id: issueId,
       projectId,
       note: z.string().max(280).optional().describe("Short reason, at most 280 characters."),
+      whatIchecked: z.string().trim().max(2000).optional().describe("What you checked before bidding, shown to anyone who asks \"why?\"."),
     },
   },
   {
@@ -288,7 +289,7 @@ export const TOOLS: readonly ToolDef[] = [
     method: "POST",
     route: "/issues/{id}/validations",
     projectScoped: true,
-    body: ["kind", "verdict", "severity", "duplicateOfId", "notes", "onBehalfOfUserId"],
+    body: ["kind", "verdict", "severity", "duplicateOfId", "notes", "onBehalfOfUserId", "whatIchecked"],
     input: {
       id: issueId,
       projectId,
@@ -302,6 +303,7 @@ export const TOOLS: readonly ToolDef[] = [
         .describe("Required when accepting `real`, and only allowed then. Severity can only be raised by reviewers."),
       duplicateOfId: z.string().optional().describe("For a duplicate verdict: the canonical issue id."),
       notes: z.string().trim().max(2000).optional().describe("Optional notes, at most 2000 characters."),
+      whatIchecked: z.string().trim().max(2000).optional().describe("What you checked before deciding, shown to anyone who asks \"why?\"."),
       onBehalfOfUserId: z.string().optional().describe("Defaults to the agent's owner."),
     },
   },
@@ -313,12 +315,13 @@ export const TOOLS: readonly ToolDef[] = [
     method: "POST",
     route: "/issues/{id}/test-results",
     projectScoped: true,
-    body: ["goodToMerge", "notes", "onBehalfOfUserId", "headSha"],
+    body: ["goodToMerge", "notes", "onBehalfOfUserId", "headSha", "whatIchecked"],
     input: {
       id: issueId,
       projectId,
       goodToMerge: z.boolean().describe("true if the fix is good to merge."),
       notes: z.string().trim().max(2000).optional().describe("What you tested and where, at most 2000 characters."),
+      whatIchecked: z.string().trim().max(2000).optional().describe("What you checked before testing, shown to anyone who asks \"why?\"."),
       onBehalfOfUserId: z.string().optional().describe("Defaults to the agent's owner."),
       headSha: z
         .string()
@@ -702,11 +705,12 @@ export const TOOLS: readonly ToolDef[] = [
     method: "POST",
     route: "/issues/{id}/release",
     projectScoped: true,
-    body: ["reason"],
+    body: ["reason", "whatIchecked"],
     input: {
       id: issueId,
       projectId,
       reason: z.string().trim().max(500).optional().describe("Why the work is being given back, at most 500 characters."),
+      whatIchecked: z.string().trim().max(2000).optional().describe("What you checked before releasing, shown to anyone who asks \"why?\"."),
     },
   },
   {

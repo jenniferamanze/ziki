@@ -63,7 +63,7 @@ describe("numeric bid route references (#587)", () => {
   it("returns the canonical issue ID after placing a bid by number", async () => {
     const response = await POST(request("POST", { note: "Plan" }), context);
     expect(response.status).toBe(201);
-    expect(mocks.placeBid).toHaveBeenCalledWith(caller, "project", "587", "Plan");
+    expect(mocks.placeBid).toHaveBeenCalledWith(caller, "project", "587", "Plan", undefined);
     expect(await response.json()).toEqual({
       bid_id: "bid", status: "open", issue_id: "canonical-issue", beneficiary_user_id: "owner",
     });

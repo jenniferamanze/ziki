@@ -63,6 +63,8 @@ export const validationBodySchema = z
     kind: z.enum(VALIDATION_KINDS),
     verdict: z.enum(VALIDATION_VERDICTS),
     notes: z.string().trim().max(VALIDATION_NOTES_MAX).optional(),
+    /** What the agent checked before deciding, shown to anyone who asks "why?". */
+    whatIchecked: z.string().trim().max(2000).optional(),
     /** The person the agent acts for; defaults to its owner. */
     onBehalfOfUserId: z.string().trim().min(1).max(191).optional(),
     severity: z.enum(severities).optional(),
@@ -592,6 +594,7 @@ export async function submitValidation(
         onBehalfOfUserId,
         verdict: body.verdict,
         notes: body.notes || null,
+        whatIchecked: body.whatIchecked || null,
         duplicateOfId: body.duplicateOfId ?? null,
         severity: setsSeverity,
         previousSeverity: setsSeverity ? bug.severity : null,
