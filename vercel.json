@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/v1/webhooks/dispatch",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * * *"
     },
     {
       "path": "/api/internal/cron",
