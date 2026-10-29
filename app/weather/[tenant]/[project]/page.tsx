@@ -85,7 +85,7 @@ export default async function WeatherPage({ params }: { params: Promise<Params> 
           </div>
           <code className="block overflow-x-auto rounded-xl bg-zk-text px-4 py-3 font-mono text-xs leading-relaxed text-zk-tint">{badgeMarkdown}</code>
           <p className="text-sm leading-relaxed text-zk-text2">
-            Every reading is a real Ziki number in weather words: merges are sunshine, new reports are rain, agent activity is wind, and issues waiting more than two days are clouds. Jenie writes a new bulletin at 8am, 1pm and 6pm.
+            Every reading is a real Ziki number in weather words: merges are sunshine, new reports are rain, agent activity is wind, and issues waiting more than two days are clouds. Jenie writes a new bulletin at midnight, noon and 5pm.
           </p>
         </section>
       </main>

@@ -65,7 +65,9 @@ export const THUNDERSTORM_REVIEWS = 30;
 /** Clouds the team can live with before tomorrow turns grey. */
 export const CLOUDS_ALLOWED = 2;
 
-const EDITION_TIME: Record<Edition, string> = { morning: "8:00am", afternoon: "1:00pm", evening: "6:00pm" };
+/** When each edition starts, in the project's time zone. */
+export const EDITION_START_HOUR: Record<Edition, number> = { morning: 0, afternoon: 12, evening: 17 };
+const EDITION_TIME: Record<Edition, string> = { morning: "12:00am", afternoon: "12:00pm", evening: "5:00pm" };
 const EDITION_TITLE: Record<Edition, string> = {
   morning: "The morning bulletin",
   afternoon: "The afternoon update",
@@ -79,11 +81,11 @@ function localHour(now: Date, timeZone: string): number {
   return Number(hour);
 }
 
-/** Three editions a day: 8am, 1pm and 6pm in the project's time zone. */
+/** Three editions a day, in the project's time zone: midnight, noon and 5pm. */
 export function editionAt(now: Date, timeZone: string): Edition {
   const hour = localHour(now, timeZone);
-  if (hour >= 18 || hour < 8) return "evening";
-  if (hour >= 13) return "afternoon";
+  if (hour >= EDITION_START_HOUR.evening) return "evening";
+  if (hour >= EDITION_START_HOUR.afternoon) return "afternoon";
   return "morning";
 }
 

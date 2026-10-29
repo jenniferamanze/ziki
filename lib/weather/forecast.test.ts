@@ -29,16 +29,17 @@ function input(over: Partial<WeatherInput> = {}): WeatherInput {
 
 describe("Ziki weather forecast (#weather)", () => {
   it.each([
-    ["07:30", "evening"],
-    ["08:00", "morning"],
-    ["12:59", "morning"],
-    ["13:00", "afternoon"],
-    ["17:59", "afternoon"],
-    ["18:00", "evening"],
+    ["00:00", "morning"],
+    ["07:30", "morning"],
+    ["11:59", "morning"],
+    ["12:00", "afternoon"],
+    ["16:59", "afternoon"],
+    ["17:00", "evening"],
+    ["23:59", "evening"],
   ])("Lagos %s is the %s edition", (time, edition) => {
     // Lagos is UTC+1 all year.
     const [h, m] = time.split(":").map(Number);
-    const utc = new Date(Date.UTC(2026, 9, 28, h - 1, m));
+    const utc = new Date(Date.UTC(2026, 9, 28, h, m) - 60 * 60 * 1000);
     expect(editionAt(utc, LAGOS)).toBe(edition);
   });
 
@@ -46,7 +47,7 @@ describe("Ziki weather forecast (#weather)", () => {
     const f = forecastFor(input());
     expect(f.edition).toBe("afternoon");
     expect(f.editionTitle).toBe("The afternoon update");
-    expect(f.editionTime).toBe("1:00pm");
+    expect(f.editionTime).toBe("12:00pm");
     expect(f.dateLabel).toBe("Wednesday 28 October");
   });
 
@@ -62,7 +63,7 @@ describe("Ziki weather forecast (#weather)", () => {
     expect(afternoon.bulletin).toContain("Agent winds are brisk.");
     expect(afternoon.bulletin).toContain("Clear 2 more clouds and tomorrow turns sunny.");
 
-    const evening = forecastFor(input({ now: new Date("2026-10-28T18:30:00Z"), stuck: [], stuckTotal: 0, criticalOpen: 2 }));
+    const evening = forecastFor(input({ now: new Date("2026-10-28T16:30:00Z"), stuck: [], stuckTotal: 0, criticalOpen: 2 }));
     expect(evening.bulletin).toMatch(/^Evening!/);
     expect(evening.bulletin).toContain("Clear skies over the review queue.");
     expect(evening.bulletin).toContain("A calm night ahead.");
