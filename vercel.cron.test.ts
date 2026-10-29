@@ -7,15 +7,15 @@ describe("vercel.json cron (#583, #647)", () => {
     crons?: { path: string; schedule: string }[];
   };
 
-  it("schedules the webhook dispatcher at least once a minute", () => {
+  it("schedules the webhook dispatcher once a day (Vercel hobby limit)", () => {
     const cron = config.crons?.find((entry) => entry.path === "/api/v1/webhooks/dispatch");
     expect(cron).toBeDefined();
-    expect(cron!.schedule).toBe("* * * * *");
+    expect(cron!.schedule).toBe("0 0 * * *");
   });
 
-  it("schedules the platform internal cron runner at least once a minute (#647)", () => {
+  it("schedules the platform internal cron runner once a day (#647)", () => {
     const cron = config.crons?.find((entry) => entry.path === "/api/internal/cron");
     expect(cron).toBeDefined();
-    expect(cron!.schedule).toBe("* * * * *");
+    expect(cron!.schedule).toBe("0 0 * * *");
   });
 });
