@@ -52,7 +52,7 @@ export async function loadAgentCenter(userId: string, tenantId: string | null, p
       ] },
       orderBy: [...orderBy], take: ACTIVITY_PAGE_SIZE + 1,
       select: {
-        id: true, agentId: true, createdAt: true, status: true, deliverBy: true, waitingOnOwnerSince: true,
+        id: true, createdAt: true, status: true, deliverBy: true, waitingOnOwnerSince: true,
         lastHeartbeatAt: true, releaseReason: true, releasedAt: true,
         agent: { select: { name: true } }, bug: { select: issueSelect },
       },
@@ -64,7 +64,10 @@ export async function loadAgentCenter(userId: string, tenantId: string | null, p
       ] },
       orderBy: [...orderBy], take: ACTIVITY_PAGE_SIZE + 1,
       // Summary only: private question/message text can occur in raw payloads.
-      select: { id: true, createdAt: true, action: true, undoneAt: true, agent: { select: { name: true } }, bug: { select: issueSelect } },
+      select: {
+        id: true, createdAt: true, action: true, undoneAt: true, agentId: true, actorUserId: true,
+        agent: { select: { name: true } }, bug: { select: issueSelect },
+      },
     }),
   ]);
   return { isAdmin, questions: activityPage(questions), approvals: activityPage(approvals), work: activityPage(work), events: activityPage(events) };

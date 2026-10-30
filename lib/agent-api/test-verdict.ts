@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { WHY_CHECKED_MAX } from "@/lib/why/limits";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/agents/audit";
@@ -38,8 +39,6 @@ export const TEST_VERDICT_NOTES_MAX = 2000;
 export const testVerdictBodySchema = z.object({
   goodToMerge: z.boolean(),
   notes: z.string().trim().max(TEST_VERDICT_NOTES_MAX).optional(),
-  /** What the agent checked before testing, shown to anyone who asks "why?". */
-  whatIchecked: z.string().trim().max(2000).optional(),
   /** The person the agent acts for; defaults to its owner. */
   onBehalfOfUserId: z.string().trim().min(1).max(191).optional(),
   /**
@@ -51,6 +50,8 @@ export const testVerdictBodySchema = z.object({
     .trim()
     .regex(/^[0-9a-f]{7,64}$/i, "headSha must be a hexadecimal commit SHA.")
     .optional(),
+  /** "What I checked", shown under "Why?" on the Activity page. */
+  checked: z.string().trim().max(WHY_CHECKED_MAX).optional(),
 });
 
 export type TestVerdictBody = z.infer<typeof testVerdictBodySchema>;
@@ -221,7 +222,6 @@ export async function submitTestVerdict(
           data: {
             goodToMerge: body.goodToMerge,
             notes: body.notes || null,
-            whatIchecked: body.whatIchecked || null,
             onBehalfOfUserId,
             pullRequestUrl,
             headSha,
@@ -238,6 +238,7 @@ export async function submitTestVerdict(
             from: { goodToMerge: existing.goodToMerge, pullRequestUrl: existing.pullRequestUrl },
             to: { goodToMerge: body.goodToMerge, pullRequestUrl, headSha },
             onBehalfOfUserId,
+            ...(body.checked ? { checked: body.checked } : {}),
           },
           { bugId: bug.id, db: tx },
         );
@@ -268,7 +269,6 @@ export async function submitTestVerdict(
           onBehalfOfUserId,
           goodToMerge: body.goodToMerge,
           notes: body.notes || null,
-          whatIchecked: body.whatIchecked || null,
           pullRequestUrl,
           headSha,
         },
@@ -279,7 +279,7 @@ export async function submitTestVerdict(
         agent,
         "issue.test_verdict",
         `bug:${bug.id}`,
-        { verdictId: verdict.id, goodToMerge: body.goodToMerge, onBehalfOfUserId, pullRequestUrl, headSha },
+        { verdictId: verdict.id, goodToMerge: body.goodToMerge, onBehalfOfUserId, pullRequestUrl, headSha, ...(body.checked ? { checked: body.checked } : {}) },
         { bugId: bug.id, db: tx },
       );
       await publish(tx, {

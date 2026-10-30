@@ -1,60 +1,40 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createMethodNotAllowed, createOptions } from "@/lib/agent-api/http-errors";
-import { requireAgent, agentErrorResponse } from "@/lib/agents/require-agent";
-import { z } from "zod";
-import { updateHandOffProgress } from "@/lib/agent-api/handoff";
+import { agentIssueRequest, issueJson } from "@/lib/agent-api/issues";
+import { HandOffError, progressSchema, updateHandOffProgress } from "@/lib/agent-api/handoff";
 
-const progressSchema = z.object({
-  progressNote: z.string().trim().min(1).max(2000),
-  status: z.enum(["accepted", "in_progress", "completed", "released"]),
-});
+export const runtime = "nodejs";
 
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> },
-) {
+/**
+ * POST /api/v1/handoffs/{id}/progress  `{ "status": "in_progress", "progressNote": "..." }`
+ *
+ * Work a person handed to this agent from their dashboard ("Point and hand
+ * off") arrives in the inbox as kind `handoff`. The agent reports what it is
+ * doing here; the dashboard shows the note on the item and in the Your agents
+ * table. `completed` or `released` closes it and tells the person.
+ */
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  let agent;
-  try {
-    agent = await requireAgent(request);
-  } catch (error) {
-    return agentErrorResponse(error);
-  }
-
-  const parsed = progressSchema.safeParse(await request.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid progress request." }, { status: 400 });
-  }
-
-  try {
-    const updated = await updateHandOffProgress(
-      agent,
-      id,
-      parsed.data.progressNote,
-      parsed.data.status,
-    );
-    return NextResponse.json({
-      handOff_id: updated.id,
-      status: updated.status,
-      progressNote: updated.progressNote,
-      updated_at: updated.updatedAt,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === "Hand-off not found.")
-        return NextResponse.json({ error: "not_found" }, { status: 404 });
-      if (error.message === "Not your hand-off.")
-        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  return agentIssueRequest(request, "handoffs.progress", "observer", id, async (agent) => {
+    const parsed = progressSchema.safeParse(await issueJson(request));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Send { \"status\": \"accepted|in_progress|completed|released\", \"progressNote\": \"...\" }." }, { status: 400 });
     }
-    throw error;
-  }
+    try {
+      const handOff = await updateHandOffProgress(agent, id, parsed.data);
+      return NextResponse.json({ handOff: { id: handOff.id, status: handOff.status, progressNote: handOff.progressNote, updatedAt: handOff.updatedAt } });
+    } catch (error) {
+      if (error instanceof HandOffError) return NextResponse.json({ error: error.message }, { status: error.status });
+      throw error;
+    }
+  }, { budget: "write" });
 }
 
 const apiMethodNotAllowed = createMethodNotAllowed(["POST", "OPTIONS"]);
 const apiOptions = createOptions(["POST", "OPTIONS"]);
-
 export const GET = apiMethodNotAllowed;
 export const PUT = apiMethodNotAllowed;
 export const PATCH = apiMethodNotAllowed;
 export const DELETE = apiMethodNotAllowed;
+export const HEAD = apiMethodNotAllowed;
 export const OPTIONS = apiOptions;

@@ -100,6 +100,13 @@ describe("shortcutGroups", () => {
 
   it("omits the dashboard for users who can't open it", () => {
     expect(labels(shortcutGroups({ dashboard: false }))).not.toContain("Go to dashboard");
+    expect(actions(shortcutGroups({ dashboard: false }))).not.toContain("hand-off");
+  });
+
+  it("lists Point and hand off on the dashboard", () => {
+    const item = shortcutGroups().flatMap((group) => group.items).find((spec) => spec.action === "hand-off");
+    expect(item?.keys).toEqual(["Alt+click", "Alt+Enter"]);
+    expect(item?.joiner).toBe("or");
   });
 
   it("marks n and c as alternatives", () => {

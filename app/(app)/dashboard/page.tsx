@@ -30,7 +30,11 @@ import {
 import { formatPoints, TARGET_POINTS } from "@/lib/points/rules";
 import { prisma } from "@/lib/prisma";
 import { openIssueStages } from "@/lib/issue-stage";
-import { getHandOffsOpenedBy } from "@/app/(app)/dashboard/actions";
+import { listOpenHandOffs } from "@/lib/agent-api/handoff";
+import { handOffActivity, issueRequests, statRequests, STAT_KEYS } from "@/lib/handoff/presets";
+import { HandOffTip } from "@/components/hand-off-tip";
+import type { StatHandOff } from "@/components/overview/stat-cards";
+import type { IssueHandOff } from "@/components/overview/assigned-issues-table";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -215,35 +219,30 @@ export default async function DashboardPage() {
     }
   }
 
-  // Fetch hand-offs opened by the user for "Point and hand off" labels.
-  let handOffs: { id: string; agentId: string; itemType: string; itemId: string; itemTitle: string; request: string; status: string; progressNote: string | null; createdAt: Date; updatedAt: Date; agent: { id: string; name: string } }[] = [];
-  try {
-    handOffs = await getHandOffsOpenedBy();
-  } catch (error) {
-    console.error("[dashboard] hand-offs load failed", error);
+  // "Point and hand off": what is with an agent now, and what each item offers.
+  let openHandOffs: Awaited<ReturnType<typeof listOpenHandOffs>> = [];
+  if (tenantId) {
+    try {
+      openHandOffs = await listOpenHandOffs(user.id, tenantId);
+    } catch (error) {
+      console.error("[dashboard] hand-offs load failed", error);
+    }
   }
-
-  const toGo = Math.max(0, TARGET_POINTS - pointsThisWeek(historyEntries, now));
-  const statHandOffs: Record<string, { itemId: string; presetActions: string[] }> = {
-    Points: {
-      itemId: "points",
-      presetActions: [
-        `Find me work worth ${toGo} points`,
-        "Review my recent validations",
-        "Check my blockers",
-      ],
-    },
+  const activeFor = (itemType: string, itemId: string) => {
+    const handOff = openHandOffs.find((row) => row.itemType === itemType && row.itemId === itemId);
+    return handOff ? { agentName: handOff.agent.name, note: handOffActivity(handOff) } : null;
   };
-  const issueHandOffs: Record<string, { presetActions: string[] }> = {};
-  for (const issue of assignedIssues) {
-    issueHandOffs[issue.id] = {
-      presetActions: [
-        "Investigate and draft a fix plan",
-        "Check it still happens on the latest build",
-        "Ask the reporter for what's missing",
-      ],
-    };
+  const pointsToGo = Math.max(0, TARGET_POINTS - pointsThisWeek(historyEntries, now));
+  const handOffAgents = agentRows.map((agent) => ({ id: agent.id, name: agent.name }));
+  const statHandOffs: Record<string, StatHandOff> = {};
+  for (const [label, key] of Object.entries(STAT_KEYS)) {
+    statHandOffs[label] = { itemId: key, requests: statRequests(key, { pointsToGo }), active: activeFor("stat", key) };
   }
+  const issueHandOffs: Record<string, IssueHandOff> = {};
+  for (const issue of assignedIssues) {
+    issueHandOffs[issue.id] = { requests: issueRequests(), active: activeFor("issue", issue.id) };
+  }
+  const agentHandOffs = openHandOffs.map((row) => ({ agentId: row.agentId, activity: handOffActivity(row) }));
 
   const agents: DashboardAgentView[] = agentRows.map((agent) => ({
     ...agent,
@@ -300,15 +299,17 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <OverviewStatCards stats={stats} handOffs={statHandOffs} />
+      <HandOffTip hasAgents={handOffAgents.length > 0} />
+
+      <OverviewStatCards stats={stats} handOff={{ agents: handOffAgents, byLabel: statHandOffs }} />
 
       {weather ? <WeatherCard weather={weather} /> : null}
 
-      <AssignedIssuesTable issues={assignedIssues} handOffs={issueHandOffs} />
+      <AssignedIssuesTable issues={assignedIssues} handOff={{ agents: handOffAgents, byIssue: issueHandOffs }} />
 
       <PointsChart entries={chartEntries} nowIso={now.toISOString()} />
 
-      <DashboardAgents initial={agents} handOffs={handOffs} />
+      <DashboardAgents initial={agents} handOffs={agentHandOffs} />
     </div>
   );
 }

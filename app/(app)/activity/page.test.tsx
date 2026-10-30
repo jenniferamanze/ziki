@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireUser: vi.fn(), tenant: vi.fn(), load: vi.fn(), enabled: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireUser: vi.fn(), tenant: vi.fn(), load: vi.fn(), enabled: vi.fn(), why: vi.fn() }));
+vi.mock("@/lib/why/load", () => ({ loadWhy: mocks.why }));
+vi.mock("@/components/why/why-panel", () => ({
+  WhyPanel: ({ auditEventId, view }: { auditEventId: string; view: { why: string | null } }) => <div>why? {auditEventId} {view.why}</div>,
+}));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/tenant-context", () => ({ currentTenantIdFor: mocks.tenant }));
 vi.mock("@/lib/agent-center/queries", () => ({ loadAgentCenter: mocks.load }));
@@ -22,6 +26,7 @@ beforeEach(() => {
   mocks.enabled.mockReturnValue(true);
   const empty = { items: [], next: null };
   mocks.load.mockResolvedValue({ isAdmin: false, questions: empty, approvals: empty, work: empty, events: empty });
+  mocks.why.mockResolvedValue(new Map());
 });
 
 it("authenticates before querying, including when the feature is disabled", async () => {
@@ -72,4 +77,30 @@ it("shows claim deadlines, owner blockers and audit timestamps with issue links"
   });
   const html = renderToStaticMarkup(await ActivityPage({ searchParams: Promise.resolve({}) }));
   for (const text of ["Claim: active", "Issue: In progress", "Delivery deadline", "Blocked: waiting for owner guidance", "clocks are paused", "Last heartbeat", "issue.claimed", "/issues/b1", "<time>Today</time>"]) expect(html).toContain(text);
+});
+
+it("puts why? on agent actions and marks a challenged one (Why?)", async () => {
+  const at = new Date("2026-10-27T12:00:00Z");
+  const bug = { id: "b1", number: 9, title: "Login", status: "open", pullRequestUrl: null };
+  mocks.load.mockResolvedValue({
+    isAdmin: true, questions: { items: [], next: null }, approvals: { items: [], next: null }, work: { items: [], next: null },
+    events: { items: [
+      { id: "e1", createdAt: at, action: "issue.validated", agentId: "a1", actorUserId: null, agent: { name: "Claude" }, bug, undoneAt: null },
+      { id: "e2", createdAt: at, action: "agent.level_changed", agentId: "a1", actorUserId: "u9", agent: { name: "Claude" }, bug: null, undoneAt: null },
+    ], next: null },
+  });
+  mocks.why.mockResolvedValue(new Map([["e1", {
+    why: "Could not reproduce on Chrome.", checked: "Three runs", myVerdict: null, state: "challenged",
+    challenges: [{ id: "f1", byName: "Ada", mine: false, body: "It fails on Safari", reply: null, createdAt: at, repliedAt: null }],
+    trust: { makesSense: 2, challenged: 1 },
+  }]]));
+  const html = renderToStaticMarkup(await ActivityPage({ searchParams: Promise.resolve({}) }));
+  expect(mocks.why).toHaveBeenCalledWith("u1", "t1", [
+    { id: "e1", agentId: "a1", action: "issue.validated", actorUserId: null },
+    { id: "e2", agentId: "a1", action: "agent.level_changed", actorUserId: "u9" },
+  ]);
+  expect(html).toContain('id="why-e1"');
+  expect(html).toContain("why? e1 Could not reproduce on Chrome.");
+  expect(html).toContain("Challenged");
+  expect(html).not.toContain("why? e2");
 });

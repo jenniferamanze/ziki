@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
     const scope = await issueProject(agent, request.nextUrl.searchParams, parsed.data.projectId);
     try {
-      return NextResponse.json(await releaseClaim(agent, scope.projectId, id, parsed.data.reason, parsed.data.whatIchecked), { status: 200 });
+      return NextResponse.json(await releaseClaim(agent, scope.projectId, id, parsed.data.reason, parsed.data.checked), { status: 200 });
     } catch (error) {
       if (error instanceof IssueApiError) throw error;
       return NextResponse.json({ error: "Release unavailable; try again." }, { status: 503 });

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { Severity, Status } from "@prisma/client";
 import { OverviewVote } from "@/components/overview/overview-vote";
-import { IssueRowZone } from "@/components/issue-row-zone";
+import { HandOffZone } from "@/components/hand-off-zone";
+import { HandOffLabel } from "@/components/hand-off-label";
+import type { HandOffAgent } from "@/components/hand-off-menu";
 import { formatIssueNumber } from "@/lib/issue-number";
 import { issuePath } from "@/lib/issue-ref";
 import { formatShortAge } from "@/lib/format";
@@ -20,10 +22,6 @@ export type OverviewAssignedIssue = {
   commentCount: number;
   createdAt: string;
   stage: IssueStage | null;
-};
-
-export type IssueHandOffConfig = {
-  presetActions: string[];
 };
 
 function priorityTone(severity: Severity): {
@@ -75,12 +73,18 @@ function typeIconPath(typeName: string | null): string {
   return "M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5";
 }
 
-export function AssignedIssuesTable({ 
-  issues, 
-  handOffs 
-}: { 
-  issues: OverviewAssignedIssue[]; 
-  handOffs?: Record<string, IssueHandOffConfig>;
+/** "Point and hand off" on an issue row: the three requests, and who is on it. */
+export type IssueHandOff = {
+  requests: string[];
+  active?: { agentName: string; note: string } | null;
+};
+
+export function AssignedIssuesTable({
+  issues,
+  handOff,
+}: {
+  issues: OverviewAssignedIssue[];
+  handOff?: { agents: HandOffAgent[]; byIssue: Record<string, IssueHandOff> };
 }) {
   const countLabel = issues.length === 1 ? "1 issue" : `${issues.length} issues`;
 
@@ -131,14 +135,12 @@ export function AssignedIssuesTable({
                 const stage = stageTone(issue.stage);
                 const statusOpen =
                   issue.status === "open" || issue.status === "in_progress";
-                const config = handOffs?.[issue.id];
-                const rowContent = (
-                  <li
-                    key={issue.id}
-                    className={`flex items-center gap-4 px-4 py-3.5 ${
-                      index < issues.length - 1 ? "border-b border-zk-divider" : ""
-                    }`}
-                  >
+                const config = handOff?.byIssue[issue.id];
+                const rowClass = `flex items-center gap-4 px-4 py-3.5 ${
+                  index < issues.length - 1 ? "border-b border-zk-divider" : ""
+                }`;
+                const cells = (
+                  <>
                     <OverviewVote
                       bugId={issue.id}
                       voteCount={issue.voteCount}
@@ -169,6 +171,7 @@ export function AssignedIssuesTable({
                         </span>
                         <span className="flex items-center gap-2 text-xs text-zk-muted">
                           <span>{formatIssueNumber(issue.number)}</span>
+                          {config?.active ? <HandOffLabel agentName={config.active.agentName} note={config.active.note} /> : null}
                           {issue.commentCount > 0 ? (
                             <span className="inline-flex items-center gap-1">
                               <svg
@@ -233,22 +236,25 @@ export function AssignedIssuesTable({
                     <span className="w-[84px] shrink-0 text-[13px] text-zk-text2">
                       {formatShortAge(issue.createdAt)}
                     </span>
-                  </li>
+                  </>
                 );
-                
-                if (config) {
-                  return (
-                    <IssueRowZone
-                      key={issue.id}
-                      itemId={issue.id}
-                      itemTitle={issue.title}
-                      presetActions={config.presetActions}
-                    >
-                      {rowContent}
-                    </IssueRowZone>
-                  );
+                if (!config || !handOff) {
+                  return <li key={issue.id} className={rowClass}>{cells}</li>;
                 }
-                return rowContent;
+                return (
+                  <HandOffZone
+                    key={issue.id}
+                    as="li"
+                    className={rowClass}
+                    itemType="issue"
+                    itemId={issue.id}
+                    itemTitle={`${formatIssueNumber(issue.number)} ${issue.title}`}
+                    requests={config.requests}
+                    agents={handOff.agents}
+                  >
+                    {cells}
+                  </HandOffZone>
+                );
               })}
             </ul>
           )}

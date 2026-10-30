@@ -1,117 +1,106 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createHandOffAction } from "@/app/(app)/dashboard/actions";
-import { Button } from "@/components/ui/button";
-import { useAgentList } from "@/hooks/use-agent-list";
+import type { HandOffItemType } from "@/lib/handoff/presets";
 
-type HandOffMenuProps = {
-  open: boolean;
+export type HandOffAgent = { id: string; name: string };
+
+/** The small menu at the item: pick a request and the agent gets it in its inbox. */
+export function HandOffMenu({
+  x, y, itemType, itemId, itemTitle, requests, agents, onClose,
+}: {
   x: number;
   y: number;
-  itemType: "points" | "assigned_issue";
+  itemType: HandOffItemType;
   itemId: string;
   itemTitle: string;
-  presetActions: string[];
+  requests: string[];
+  agents: HandOffAgent[];
   onClose: () => void;
-};
-
-export function HandOffMenu({
-  open,
-  x,
-  y,
-  itemType,
-  itemId,
-  itemTitle,
-  presetActions,
-  onClose,
-}: HandOffMenuProps) {
-  const { agents, loading } = useAgentList();
-  const [agentId, setAgentId] = useState<string | null>(agents.length ? agents[0].id : null);
-  const [submitting, setSubmitting] = useState(false);
+}) {
+  const [agentId, setAgentId] = useState(agents[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const box = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const agentName = agents.find((agent) => agent.id === agentId)?.name ?? "your agent";
 
-  const selectAction = useCallback(
-    async (request: string) => {
-      if (!agentId) return;
-      setSubmitting(true);
-      setError(null);
-      try {
-        await createHandOffAction({
-          agentId,
-          itemType,
-          itemId,
-          itemTitle,
-          request,
-        });
-      } catch {
-        setError("Could not create hand-off. Try again.");
-      } finally {
-        setSubmitting(false);
-        onClose();
+  useEffect(() => {
+    box.current?.querySelector<HTMLElement>("button[data-request]")?.focus();
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    const onDown = (event: globalThis.PointerEvent) => {
+      if (box.current && !box.current.contains(event.target as Node)) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown);
+    };
+  }, [onClose]);
+
+  function send(request: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await createHandOffAction({ agentId, itemType, itemId, request });
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
-    },
-    [agentId, itemType, itemId, itemTitle, onClose],
-  );
-
-  if (!open) return null;
+      onClose();
+      router.refresh();
+    });
+  }
 
   return (
     <div
-      className="fixed z-50 w-72 rounded-xl border border-zk-border bg-zk-surface shadow-xl p-2"
+      ref={box}
+      role="dialog"
+      aria-label={`Hand off ${itemTitle}`}
+      className="fixed z-50 w-[296px] rounded-xl border border-zk-border bg-zk-surface p-2 text-left shadow-xl"
       style={{ left: x, top: y }}
+      data-handoff-menu
     >
-      <div className="px-3 py-2 border-b border-zk-divider">
-        <p className="text-xs font-semibold text-zk-text2">Hand off to agent</p>
-        {loading ? (
-          <p className="mt-1 text-xs text-zk-muted">Loading agents…</p>
-        ) : agents.length === 0 ? (
-          <p className="mt-1 text-xs text-zk-muted">No agents. Pair one at /settings/agents/pair.</p>
-        ) : (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs text-zk-text2">Agent:</span>
-            <select
-              value={agentId ?? ""}
-              onChange={(e) => setAgentId(e.target.value || null)}
-              className="flex-1 rounded-lg border border-zk-border bg-zk-bg px-2.5 py-1.5 text-xs text-zk-text focus-visible:ring-2 focus-visible:ring-electric-blue"
-            >
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.model})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-      <div className="px-3 py-2">
-        <p className="text-xs font-semibold text-zk-text2 mb-2">What should the agent do?</p>
-        {!agentId ? null : (
-          <div className="space-y-1.5">
-            {presetActions.map((request, i) => (
-              <Button
-                key={i}
-                variant="ghost"
-                onClick={() => selectAction(request)}
-                disabled={submitting}
-                className="w-full justify-start text-left text-sm"
+      <p className="px-2 pb-1 pt-1 text-xs font-semibold text-zk-muted">
+        Ask {agentName} about <span className="text-zk-text">{itemTitle}</span>
+      </p>
+      {agents.length === 0 ? (
+        <p className="px-2 py-2 text-sm text-zk-text2">Connect an agent first (Agents menu → Connect your agent).</p>
+      ) : (
+        <>
+          {agents.length > 1 ? (
+            <label className="flex items-center gap-2 px-2 py-1 text-xs text-zk-text2">
+              Agent
+              <select
+                value={agentId}
+                onChange={(event) => setAgentId(event.target.value)}
+                className="flex-1 rounded-lg border border-zk-border bg-zk-bg px-2 py-1 text-xs text-zk-text"
               >
-                {submitting ? "Sending…" : request}
-              </Button>
+                {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+              </select>
+            </label>
+          ) : null}
+          <ul className="mt-1 space-y-0.5">
+            {requests.map((request) => (
+              <li key={request}>
+                <button
+                  type="button"
+                  data-request
+                  disabled={pending}
+                  onClick={() => send(request)}
+                  className="w-full rounded-lg px-2 py-2 text-left text-sm font-medium text-zk-text hover:bg-zk-tint focus-visible:bg-zk-tint focus-visible:outline-none disabled:opacity-50"
+                >
+                  {request}
+                </button>
+              </li>
             ))}
-            <Button
-              variant="ghost"
-              onClick={onClose}
-              className="w-full justify-start text-left text-xs text-zk-muted"
-            >
-              Cancel
-            </Button>
-          </div>
-        )}
-        {error && (
-          <p className="mt-2 text-xs text-zk-bad-fg">{error}</p>
-        )}
-      </div>
+          </ul>
+        </>
+      )}
+      {pending ? <p className="px-2 py-1 text-xs text-zk-muted">Handing it to {agentName}…</p> : null}
+      {error ? <p role="alert" className="px-2 py-1 text-xs text-zk-bad-fg">{error}</p> : null}
     </div>
   );
 }

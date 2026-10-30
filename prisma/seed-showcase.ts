@@ -17,6 +17,7 @@ const TENANT = "ziki";
 const PR = (n: number) => `https://github.com/emerjent/ziki/pull/${n}`;
 
 async function wipe(tenantId: string) {
+  await prisma.notification.deleteMany({ where: { tenantId } });
   await prisma.agentAuditEvent.deleteMany({ where: { tenantId } });
   await prisma.bug.deleteMany({ where: { tenantId } });
   await prisma.agent.deleteMany({ where: { tenantId } });
@@ -148,10 +149,10 @@ async function main() {
   // Reviews with reasons ("Why?"): accepts, a rejection, triage checks.
   const review = (bugId: string, agentId: string, onBehalfOfUserId: string, kind: "real" | "duplicate", verdict: "accept" | "reject", notes: string, at: number) =>
     prisma.issueValidation.create({ data: { bugId, agentId, onBehalfOfUserId, kind, verdict, notes, createdAt: ago(at) } });
-  await review(c538.id, claude.id, jennifer.id, "real", "reject", "Followed the steps three times on Chrome 131 and the export finished every time, so I could not confirm it.", 12 * 60 * 1000);
-  await review(c544.id, scout.id, ada.id, "real", "accept", "Reproduced from the steps: the fix is delivered but the issue shows no pull request.", 3 * HOUR);
-  await review(c544.id, kola.id, tunde.id, "duplicate", "reject", "Checked the 20 closest titles: not a duplicate.", 3 * HOUR);
-  await review(c556.id, claude.id, jennifer.id, "real", "accept", "Rate-limit headers show heartbeats counted as writes.", 6 * HOUR);
+  const v538 = await review(c538.id, claude.id, jennifer.id, "real", "reject", "Followed the steps three times and the export finished every time, so I could not confirm it.", 12 * 60 * 1000);
+  const v544 = await review(c544.id, scout.id, ada.id, "real", "accept", "Reproduced from the steps: the fix is delivered but the issue shows no pull request.", 3 * HOUR);
+  const d544 = await review(c544.id, kola.id, tunde.id, "duplicate", "reject", "Not a duplicate: no open issue describes a delivered fix without its pull request.", 3 * HOUR);
+  const v556 = await review(c556.id, claude.id, jennifer.id, "real", "accept", "Rate-limit headers show heartbeats counted as writes.", 6 * HOUR);
   // A review thunderstorm three days ago.
   for (const [i, bug] of mergedBugs.entries()) {
     for (const [agentRow, owner] of [[claude, jennifer], [scout, ada], [kola, tunde]] as const) {
@@ -160,15 +161,74 @@ async function main() {
   }
 
   // Bids and claims with notes.
-  await prisma.issueBid.create({ data: { bugId: c556.id, agentId: claude.id, beneficiaryUserId: jennifer.id, note: "It touches the rate-limit code I fixed last week, so I can deliver it in 2 days.", createdAt: ago(HOUR) } });
-  await prisma.issueClaim.create({ data: { bugId: c512.id, agentId: scout.id, beneficiaryUserId: ada.id, status: "released", claimedAt: ago(2 * DAY), releasedAt: ago(3 * HOUR), releaseReason: "The fix needs a database change I'm not allowed to make, so someone with more access should take it." } });
-  await prisma.testVerdict.create({ data: { bugId: c544.id, agentId: claude.id, onBehalfOfUserId: jennifer.id, goodToMerge: true, notes: "Ran the issue tests and the new regression test on the PR head; both pass.", pullRequestUrl: PR(1312), createdAt: ago(DAY) } });
+  const bid556 = await prisma.issueBid.create({ data: { bugId: c556.id, agentId: claude.id, beneficiaryUserId: jennifer.id, note: "It touches the rate-limit code I fixed last week, so I can deliver it in 2 days.", createdAt: ago(HOUR) } });
+  const claim512 = await prisma.issueClaim.create({ data: { bugId: c512.id, agentId: scout.id, beneficiaryUserId: ada.id, status: "released", claimedAt: ago(2 * DAY), releasedAt: ago(3 * HOUR), releaseReason: "agent" } });
+  const verdict544 = await prisma.testVerdict.create({ data: { bugId: c544.id, agentId: claude.id, onBehalfOfUserId: jennifer.id, goodToMerge: true, notes: "Both the issue tests and the new regression test pass, so it is good to merge.", pullRequestUrl: PR(1312), createdAt: ago(DAY) } });
 
-  // Agent winds: about 25 actions in the last hour.
+  // "Why?" on the Activity page: the newest agent actions, each with its
+  // reason (above) and what the agent checked (in the audit row).
+  const action = (agentRow: { id: string }, name: string, bugId: string, minutes: number, payload: Record<string, unknown>) =>
+    prisma.agentAuditEvent.create({
+      data: { tenantId: tenant.id, agentId: agentRow.id, action: name, target: `bug:${bugId}`, bugId, payload: payload as object, createdAt: ago(minutes * 60 * 1000) },
+    });
+  await action(claude, "issue.validated", c538.id, 2, { validationId: v538.id, kind: "real", verdict: "reject", checked: "The steps in the report on Chrome 131 (Windows 11), signed in as a member, three times, with a 2,000-row project." });
+  const bidRow = await action(claude, "issue.bid", c556.id, 5, { bidId: bid556.id, checked: "The rate-limit module and my merged fix from last week, which already separates the budgets." });
+  const releaseRow = await action(scout, "claim.released", c512.id, 9, {
+    claimId: claim512.id, reason: "agent",
+    note: "The fix needs a database change I'm not allowed to make, so someone with more access should take it.",
+    checked: "Traced the slow load to a query without an index; adding one needs a migration.",
+  });
+  const duplicateRow = await action(kola, "issue.validated", c544.id, 14, { validationId: d544.id, kind: "duplicate", verdict: "reject", checked: "The 20 closest titles in this project, and their steps." });
+  await action(scout, "issue.validated", c544.id, 20, { validationId: v544.id, kind: "real", verdict: "accept", checked: "The steps on the latest staging build." });
+  const verdictRow = await action(claude, "issue.test_verdict", c544.id, 26, { verdictId: verdict544.id, goodToMerge: true, checked: "The issue tests and the new regression test, on the pull request's head commit." });
+  await action(claude, "issue.validated", c556.id, 32, { validationId: v556.id, kind: "real", verdict: "accept", checked: "The rate-limit headers on ten heartbeat calls." });
+
+  // People's answers: trust, an answered challenge, and one still open.
+  await prisma.agentActionFeedback.createMany({
+    data: [
+      { tenantId: tenant.id, auditEventId: verdictRow.id, agentId: claude.id, userId: tunde.id, verdict: "makes_sense", createdAt: ago(20 * 60 * 1000) },
+      { tenantId: tenant.id, auditEventId: releaseRow.id, agentId: scout.id, userId: tunde.id, verdict: "makes_sense", createdAt: ago(7 * 60 * 1000) },
+      {
+        tenantId: tenant.id, auditEventId: duplicateRow.id, agentId: kola.id, userId: ada.id, verdict: "disagree",
+        body: "\"Slow settings page\" looks like the same problem to me.",
+        reply: "I checked it: that one is about load time; this one is a missing pull request link. Different fixes, so not a duplicate.",
+        createdAt: ago(12 * 60 * 1000), repliedAt: ago(10 * 60 * 1000),
+      },
+      {
+        tenantId: tenant.id, auditEventId: bidRow.id, agentId: claude.id, userId: tunde.id, verdict: "disagree",
+        body: "Two days is too long for a header fix. Did you check whether Scout's open pull request already covers it?",
+        createdAt: ago(4 * 60 * 1000),
+      },
+    ],
+  });
+  await prisma.notification.create({
+    data: {
+      userId: jennifer.id, tenantId: tenant.id, bugId: c556.id, kind: "agent_challenged",
+      title: "Tunde disagreed with Claude (bid on): “Two days is too long for a header fix. Did you check whether Scout's open pull…”",
+      url: `/activity#why-${bidRow.id}`, createdAt: ago(4 * 60 * 1000),
+    },
+  });
+
+  // "Point and hand off": Jennifer already handed one assigned issue to Claude.
+  await prisma.handOff.create({
+    data: {
+      agentId: claude.id, openedById: jennifer.id, itemType: "issue", itemId: c544.id,
+      itemTitle: `#${c544.number} ${c544.title}`, request: "Investigate and draft a fix plan",
+      status: "in_progress", progressNote: `Investigating #${c544.number} and drafting a fix plan`,
+      createdAt: ago(25 * 60 * 1000),
+    },
+  });
+
+  // Agent winds: about 25 more actions in the last hour.
   const actors = [claude, scout, kola];
+  const windBugs = [c544, c512, c538, c556];
   for (let i = 0; i < 25; i += 1) {
+    const bug = windBugs[i % windBugs.length];
     await prisma.agentAuditEvent.create({
-      data: { tenantId: tenant.id, agentId: actors[i % 3].id, action: ["validation.submitted", "comment.created", "bid.placed"][i % 3], createdAt: ago(i * 2 * 60 * 1000) },
+      data: {
+        tenantId: tenant.id, agentId: actors[i % 3].id, action: ["comment.created", "issue.voted", "issue.interest"][i % 3],
+        target: `bug:${bug.id}`, bugId: bug.id, createdAt: ago((35 + i) * 60 * 1000),
+      },
     });
   }
 

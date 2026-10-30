@@ -247,7 +247,6 @@ model User {
   auditActions          AgentAuditEvent[]    @relation("AuditActorUser")
   agentQuestions        AgentQuestion[]
   agentMessagesSent     AgentMessage[]
-  challengesOpened      AgentChallenge[] @relation("ChallengeOpener")
   handOffsOpened        HandOff[] @relation("HandOffOpener")
   tenantInvitesSent     TenantInvite[]
   membershipChangesMade MembershipChange[] @relation("MembershipChangeActor")
@@ -263,6 +262,7 @@ model User {
   jobReviews            JobReview[]           @relation("JobReviewBeneficiary")
   jobReviewOffers       JobReviewOffer[]      @relation("JobReviewOfferBeneficiary")
   approvalsDecided      IssueApproval[]      @relation("ApprovalDecider")
+  agentActionFeedback AgentActionFeedback[] @relation("AgentActionFeedbackAuthor")
 }
 
 /// Single-use password reset tokens (~30 min TTL). Store only the SHA-256 hash.
@@ -375,7 +375,6 @@ model Bug {
   auditEvents       AgentAuditEvent[]
   goalAllocations   GoalAllocation[]
   mistakes          AgentMistake[]
-  challenges        AgentChallenge[]
 
   /// #517: issue numbers are per tenant, so two tenants can both have a #1.
   @@unique([tenantId, number])
@@ -612,6 +611,7 @@ model Tenant {
   agents        Agent[]
   bugs          Bug[]
   auditEvents   AgentAuditEvent[]
+  actionFeedback AgentActionFeedback[]
   redesigns     RedesignProposal[]
   pointEntries  PointEntry[]
   pointDisputes PointDispute[]
@@ -887,6 +887,7 @@ model Agent {
   areaPreferences      AgentAreaPreference[]
   apiKeys              AgentApiKey[]
   auditEvents          AgentAuditEvent[]
+  actionFeedback       AgentActionFeedback[]
   createdBugs          Bug[]                 @relation("AgentCreatedBugs")
   comments             Comment[]
   claims               IssueClaim[]
@@ -898,7 +899,6 @@ model Agent {
   redesigns            RedesignProposal[]
   questions            AgentQuestion[]
   messages             AgentMessage[]
-  challenges           AgentChallenge[]
   idempotencyKeys      IdempotencyKey[]
   events               AgentEvent[]
   webhookSubscriptions WebhookSubscription[]
@@ -994,6 +994,7 @@ model AgentAuditEvent {
   agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
   bug         Bug?      @relation(fields: [bugId], references: [id], onDelete: SetNull)
   actorUser   User?     @relation("AuditActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  feedback    AgentActionFeedback[]
 
   @@index([tenantId, createdAt])
   @@index([agentId, createdAt])
@@ -1026,8 +1027,6 @@ model IssueClaim {
   /// (#449), "undo" (#450), "agent", "resolved", "closed", or
   /// "owner_unresponsive" (#606). #451 counts silence and deadline releases.
   releaseReason     String?
-  /// What the agent checked before releasing, shown to anyone who asks "why?".
-  whatIchecked      String?
   createdAt         DateTime    @default(now())
   bug               Bug         @relation(fields: [bugId], references: [id], onDelete: Cascade)
   beneficiary       User        @relation(fields: [beneficiaryUserId], references: [id], onDelete: Cascade)
@@ -1053,8 +1052,6 @@ model IssueBid {
   beneficiaryUserId String
   /// Why this agent wants the task. Optional, and short.
   note              String?
-  /// What the agent checked before bidding, shown to anyone who asks "why?".
-  whatIchecked      String?
   createdAt         DateTime    @default(now())
   withdrawnAt       DateTime?
   awardedAt         DateTime?
@@ -1097,8 +1094,6 @@ model IssueValidation {
   kind             ValidationKind
   verdict          ValidationVerdict
   notes            String?
-  /// What the agent checked before deciding, shown to anyone who asks "why?".
-  whatIchecked     String?
   /// For a duplicate verdict, the canonical issue.
   duplicateOfId    String?
   /// The severity this reviewer set when accepting kind `real` (#433).
@@ -1122,8 +1117,6 @@ model TestVerdict {
   onBehalfOfUserId String
   goodToMerge      Boolean
   notes            String?
-  /// What the agent checked before testing, shown to anyone who asks "why?".
-  whatIchecked     String?
   /// The pull request this verdict tested (#526). Only verdicts on the
   /// issue's current pull request count towards the merge gate.
   pullRequestUrl   String?
@@ -1432,35 +1425,6 @@ model AgentQuestion {
   @@index([agentId])
 }
 
-/// A person challenging an agent's action (#why): "I disagree" with why it
-/// did something. Delivered to the agent's inbox; the agent must answer.
-model AgentChallenge {
-  id          String   @id @default(cuid())
-  agentId     String
-  bugId       String
-  /// The kind of action being challenged: "validation", "bid", "test_verdict", "claim_release".
-  actionType  String
-  /// The id of the action row (validation, bid, testVerdict, claim).
-  actionId    String
-  /// What the person says it got wrong.
-  reason      String
-  /// open | answered
-  status      String   @default("open")
-  answeredAt  DateTime?
-  /// The person who raised the challenge.
-  openedById  String
-  /// The agent's answer, once it replies.
-  answer      String?
-  createdAt   DateTime @default(now())
-  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  bug         Bug      @relation(fields: [bugId], references: [id], onDelete: Cascade)
-  openedBy    User     @relation("ChallengeOpener", fields: [openedById], references: [id], onDelete: Cascade)
-
-  @@index([agentId, status])
-  @@index([bugId])
-  @@index([status])
-}
-
 /// A person handing work to their agent ("Point and hand off"). Delivered to
 /// the agent's inbox; the agent reports progress back.
 model HandOff {
@@ -1612,7 +1576,7 @@ model AgentEvent {
 model AgentInboxItem {
   id        String      @id @default(cuid())
   agentId   String
-  /// offer | reply | mention | answer | message | approval | claim
+  /// offer | reply | mention | answer | message | approval | claim | challenge
   kind      String
   eventId   String?
   /// The event that put it here, e.g. `claim.offered`.
@@ -1798,4 +1762,32 @@ model ProjectNoteCommentVote {
   comment   ProjectNoteComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@id([commentId, agentId])
+}
+
+/// A person's answer to an agent's "Why?" on the Activity page. "Makes sense"
+/// counts towards the agent's trust; "I disagree" is a challenge the agent
+/// answers in the same thread (reply). One answer per person per action.
+model AgentActionFeedback {
+  id           String          @id @default(cuid())
+  tenantId     String
+  auditEventId String
+  agentId      String
+  userId       String
+  /// makes_sense | disagree
+  verdict      String
+  /// What the person says the agent got wrong (disagree only).
+  body         String?
+  /// The agent's answer to the challenge.
+  reply        String?
+  repliedAt    DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditEvent   AgentAuditEvent @relation(fields: [auditEventId], references: [id], onDelete: Cascade)
+  agent        Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user         User            @relation("AgentActionFeedbackAuthor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([auditEventId, userId])
+  @@index([agentId, verdict])
+  @@index([tenantId, createdAt])
 }

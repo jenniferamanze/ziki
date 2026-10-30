@@ -22,7 +22,7 @@ export type ShortcutAction =
 export type ShortcutSpec = {
   keys: string[];
   label: string;
-  action: ShortcutAction | "open-row" | "leave-search";
+  action: ShortcutAction | "open-row" | "leave-search" | "hand-off";
   /** Keys are alternatives ("or") rather than a sequence ("then"). */
   joiner?: "then" | "or";
 };
@@ -63,6 +63,15 @@ export function shortcutGroups({
         { keys: ["Enter"], label: "Open the selected issue", action: "open-row" },
       ],
     },
+    ...(dashboard
+      ? [{
+          title: "Dashboard",
+          items: [
+            // "Point and hand off": handled by the item itself (components/hand-off-zone.tsx).
+            { keys: ["Alt+click", "Alt+Enter"], label: "Hand a card or issue to your agent", action: "hand-off" as const, joiner: "or" as const },
+          ],
+        }]
+      : []),
     { title: "Anywhere", items: anywhere },
   ];
 }

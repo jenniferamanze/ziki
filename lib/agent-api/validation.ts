@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient, type Severity, type ValidationKind } from "@prisma/client";
+import { WHY_CHECKED_MAX } from "@/lib/why/limits";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/agents/audit";
@@ -63,13 +64,13 @@ export const validationBodySchema = z
     kind: z.enum(VALIDATION_KINDS),
     verdict: z.enum(VALIDATION_VERDICTS),
     notes: z.string().trim().max(VALIDATION_NOTES_MAX).optional(),
-    /** What the agent checked before deciding, shown to anyone who asks "why?". */
-    whatIchecked: z.string().trim().max(2000).optional(),
     /** The person the agent acts for; defaults to its owner. */
     onBehalfOfUserId: z.string().trim().min(1).max(191).optional(),
     severity: z.enum(severities).optional(),
     /** For a duplicate verdict: the canonical issue. */
     duplicateOfId: z.string().trim().min(1).max(191).optional(),
+    /** "What I checked", shown under "Why?" on the Activity page. */
+    checked: z.string().trim().max(WHY_CHECKED_MAX).optional(),
   })
   .superRefine((body, ctx) => {
     if (body.kind === "real" && body.verdict === "accept" && !body.severity) {
@@ -594,7 +595,6 @@ export async function submitValidation(
         onBehalfOfUserId,
         verdict: body.verdict,
         notes: body.notes || null,
-        whatIchecked: body.whatIchecked || null,
         duplicateOfId: body.duplicateOfId ?? null,
         severity: setsSeverity,
         previousSeverity: setsSeverity ? bug.severity : null,
@@ -686,6 +686,7 @@ export async function submitValidation(
           ...(severityDisagreement ? { severityDisagreement: true } : {}),
           ...(body.duplicateOfId ? { duplicateOfId: body.duplicateOfId } : {}),
           ...(newlyConfirmed ? { confirmed: true } : {}),
+          ...(body.checked ? { checked: body.checked } : {}),
         },
         { bugId: bug.id, db: tx },
       );

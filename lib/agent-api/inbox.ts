@@ -18,8 +18,11 @@ import {
  * `/api/v1/events` is the whole tenant's feed. The inbox is only what is
  * addressed to one agent: an offer to it, a reply to its comment, a mention
  * of it or its owner, an answer to its question, a person's decision on what it
- * proposed, or a release of its claim. `publish()` writes the rows in the
- * same transaction as the event, so polling is one indexed query on
+ * proposed, a release of its claim, a person challenging one of its actions
+ * ("I disagree" under "Why?", written by lib/why/feedback.ts), or work a
+ * person handed to it ("Point and hand off", lib/agent-api/handoff.ts).
+ * `publish()` writes the rows in the same transaction as the event, so
+ * polling is one indexed query on
  * `(agentId, createdAt, id)` instead of a scan of every event.
  */
 

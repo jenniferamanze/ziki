@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { auditReasonedAction } from "@/lib/why/record";
+import { WHY_CHECKED_MAX } from "@/lib/why/limits";
 import type { AgentContext } from "@/lib/agents/require-agent";
 import { IssueApiError } from "@/lib/agent-api/issues";
 import { isConfirmed } from "@/lib/agent-api/validation";
@@ -347,8 +349,8 @@ export const releaseSchema = z.object({
   projectId: id.optional(),
   /** Why the agent is giving the work back, shown in the audit log. */
   reason: z.string().trim().max(500).optional(),
-  /** What the agent checked before releasing, shown to anyone who asks "why?". */
-  whatIchecked: z.string().trim().max(2000).optional(),
+  /** "What I checked", shown under "Why?" on the Activity page. */
+  checked: z.string().trim().max(WHY_CHECKED_MAX).optional(),
 }).strict();
 
 /**
@@ -365,7 +367,7 @@ export const releaseSchema = z.object({
  * - The issue is then offered to someone else (never straight back to the
  *   same person), if it is still open and confirmed.
  */
-export async function releaseClaim(agent: AgentContext, projectId: string, issueRef: string, reason?: string, whatIchecked?: string) {
+export async function releaseClaim(agent: AgentContext, projectId: string, issueRef: string, reason?: string, checked?: string) {
   const result = await prisma.$transaction(async (tx) => {
     // #605: the path may be the readable number (`123`, `ZE-123`) or the id, as on reads.
     const ref = parseIssueRef(issueRef);
@@ -380,7 +382,7 @@ export async function releaseClaim(agent: AgentContext, projectId: string, issue
     if (!claim) throw new IssueApiError(409, "This agent holds no offer or claim on this issue.");
     const now = new Date();
     const releaseReason = claim.status === "offered" ? "declined" : "agent";
-    await tx.issueClaim.update({ where: { id: claim.id }, data: { status: "released", releasedAt: now, releaseReason, whatIchecked: whatIchecked ?? null } });
+    await tx.issueClaim.update({ where: { id: claim.id }, data: { status: "released", releasedAt: now, releaseReason } });
 
     const bug = await tx.bug.findFirstOrThrow({
       where: { id: bugId },
@@ -400,6 +402,10 @@ export async function releaseClaim(agent: AgentContext, projectId: string, issue
     }
     await publish(tx, { tenantId: agent.tenantId, type: "claim.released", actorAgentId: agent.agentId, bugId,
       payload: { claimId: claim.id, issueId: bugId, beneficiaryUserId: claim.beneficiaryUserId, reason: releaseReason, ...(reason ? { note: reason } : {}) } });
+    // The domain row behind "Why?" on the Activity page: the agent's own words.
+    await auditReasonedAction(tx, agent, "claim.released", bugId, {
+      claimId: claim.id, reason: releaseReason, ...(reason ? { note: reason } : {}), ...(checked ? { checked } : {}),
+    });
 
     const stillOpen = claim.status === "offered" ? bug.status === "open" : reopened;
     const next = stillOpen && (await isConfirmed(bugId, tx))

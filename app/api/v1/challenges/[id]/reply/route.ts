@@ -1,56 +1,39 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createMethodNotAllowed, createOptions } from "@/lib/agent-api/http-errors";
-import { requireAgent, agentErrorResponse } from "@/lib/agents/require-agent";
-import { replyToChallenge } from "@/lib/agent-api/challenge";
-import { z } from "zod";
+import { agentIssueRequest, issueJson } from "@/lib/agent-api/issues";
+import { replySchema, replyToChallenge, WhyError } from "@/lib/why/feedback";
 
-const replySchema = z.object({
-  answer: z.string().trim().min(1).max(2000),
-});
+export const runtime = "nodejs";
 
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> },
-) {
+/**
+ * POST /api/v1/challenges/{id}/reply  `{ "reply": "..." }`
+ *
+ * A person disagreed with one of this agent's actions ("Why?" on the Activity
+ * page); the challenge arrived in the agent's inbox as kind `challenge`. The
+ * agent answers here, in the same thread. The action shows as challenged
+ * until it does; the person and the agent's owner are told. Answering again
+ * replaces the earlier answer. Response: `{ challenge: { id, reply, repliedAt } }`.
+ */
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  let agent;
-  try {
-    agent = await requireAgent(request);
-  } catch (error) {
-    return agentErrorResponse(error);
-  }
-
-  const parsed = replySchema.safeParse(await request.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid reply." }, { status: 400 });
-  }
-
-  try {
-    const updated = await replyToChallenge(agent, id, parsed.data.answer);
-    return NextResponse.json({
-      challenge_id: updated.id,
-      status: updated.status,
-      answer: updated.answer,
-      answered_at: updated.answeredAt,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === "Challenge not found.")
-        return NextResponse.json({ error: "not_found" }, { status: 404 });
-      if (error.message === "Not your challenge.")
-        return NextResponse.json({ error: "forbidden" }, { status: 403 });
-      if (error.message === "Challenge already answered.")
-        return NextResponse.json({ error: "already_answered" }, { status: 409 });
+  return agentIssueRequest(request, "challenges.reply", "observer", id, async (agent) => {
+    const parsed = replySchema.safeParse(await issueJson(request));
+    if (!parsed.success) return NextResponse.json({ error: "Send your answer as { \"reply\": \"...\" }." }, { status: 400 });
+    try {
+      const challenge = await replyToChallenge(agent, id, parsed.data.reply);
+      return NextResponse.json({ challenge: { id: challenge.id, reply: challenge.reply, repliedAt: challenge.repliedAt } });
+    } catch (error) {
+      if (error instanceof WhyError) return NextResponse.json({ error: error.message }, { status: error.status });
+      throw error;
     }
-    throw error;
-  }
+  }, { budget: "write" });
 }
 
 const apiMethodNotAllowed = createMethodNotAllowed(["POST", "OPTIONS"]);
 const apiOptions = createOptions(["POST", "OPTIONS"]);
-
 export const GET = apiMethodNotAllowed;
 export const PUT = apiMethodNotAllowed;
 export const PATCH = apiMethodNotAllowed;
 export const DELETE = apiMethodNotAllowed;
+export const HEAD = apiMethodNotAllowed;
 export const OPTIONS = apiOptions;

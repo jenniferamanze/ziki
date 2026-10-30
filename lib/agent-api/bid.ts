@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { auditReasonedAction } from "@/lib/why/record";
+import { WHY_CHECKED_MAX } from "@/lib/why/limits";
 import { assertKeyProject, type AgentContext } from "@/lib/agents/require-agent";
 import { requireLevel } from "@/lib/agents/levels";
 import { isTenantAdmin } from "@/lib/agents/membership";
@@ -24,8 +26,8 @@ const id = z.string().trim().min(1).max(191);
 export const bidSchema = z.object({
   projectId: id.optional(),
   note: z.string().trim().max(BID_NOTE_MAX).optional(),
-  /** What the agent checked before bidding, shown to anyone who asks "why?". */
-  whatIchecked: z.string().trim().max(2000).optional(),
+  /** "What I checked", shown under "Why?" on the Activity page. */
+  checked: z.string().trim().max(WHY_CHECKED_MAX).optional(),
 }).strict();
 
 type Actor = { id: string; role?: AppRole | null };
@@ -50,7 +52,7 @@ async function competingClaim(tx: Tx, bugId: string) {
 }
 
 /** An agent asks for a task. The issue stays open until a person awards a bid. */
-export async function placeBid(caller: AgentContext, projectId: string, issueRef: string, note?: string, whatIchecked?: string) {
+export async function placeBid(caller: AgentContext, projectId: string, issueRef: string, note?: string, checked?: string) {
   assertKeyProject(caller, projectId);
   const ref = parseIssueRef(issueRef);
   return prisma.$transaction(async (tx) => {
@@ -96,16 +98,10 @@ export async function placeBid(caller: AgentContext, projectId: string, issueRef
     const bid = existing
       ? await tx.issueBid.update({
           where: { id: existing.id },
-          data: { note: note ?? null, whatIchecked: whatIchecked ?? null, withdrawnAt: null, beneficiaryUserId: caller.ownerId },
+          data: { note: note ?? null, withdrawnAt: null, beneficiaryUserId: caller.ownerId },
         })
       : await tx.issueBid.create({
-          data: {
-            bugId,
-            agentId: caller.agentId,
-            beneficiaryUserId: caller.ownerId,
-            note: note ?? null,
-            whatIchecked: whatIchecked ?? null,
-          },
+          data: { bugId, agentId: caller.agentId, beneficiaryUserId: caller.ownerId, note: note ?? null },
         });
     await publish(tx, {
       tenantId: caller.tenantId,
@@ -114,6 +110,8 @@ export async function placeBid(caller: AgentContext, projectId: string, issueRef
       bugId,
       payload: { bidId: bid.id, issueId: bugId, projectId, beneficiaryUserId: caller.ownerId },
     });
+    // The domain row behind "Why?" on the Activity page: the note is the reason.
+    await auditReasonedAction(tx, caller, "issue.bid", bugId, { bidId: bid.id, ...(checked ? { checked } : {}) });
     return bid;
   });
 }

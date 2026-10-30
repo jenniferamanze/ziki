@@ -9,7 +9,9 @@ import { statusLabel } from "@/lib/labels";
 import { LocalTime } from "@/components/local-time";
 import { IssueApprovalBanner } from "@/components/issue-approval-banner";
 import { EscalationTypeBadge, QuickResolveButtons } from "@/app/(app)/escalations/escalation-controls";
-import { WhyDialog } from "@/components/why-dialog";
+import { loadWhy } from "@/lib/why/load";
+import { WhyPanel } from "@/components/why/why-panel";
+import { toPanelView } from "@/lib/why/panel-view";
 
 export const metadata = { title: "Human–Agent Activity & Approvals" };
 const panel = "space-y-4 rounded-2xl border border-zk-border bg-zk-surface p-4 sm:p-6";
@@ -34,9 +36,14 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   const user = await requireUser();
   if (!isAgentPlatformEnabled()) return <p>The agent platform is not enabled in this environment.</p>;
   const params = await searchParams;
-  const data = await loadAgentCenter(user.id, await currentTenantIdFor(user.id), params);
-  if (!data) return <div className={panel}><h1 className="text-2xl font-bold">Activity &amp; Approvals</h1><p>Join a workspace to view agent activity.</p><Link className={link} href="/tenants">Workspaces</Link></div>;
+  const tenantId = await currentTenantIdFor(user.id);
+  const data = await loadAgentCenter(user.id, tenantId, params);
+  if (!data || !tenantId) return <div className={panel}><h1 className="text-2xl font-bold">Activity &amp; Approvals</h1><p>Join a workspace to view agent activity.</p><Link className={link} href="/tenants">Workspaces</Link></div>;
   const filters = activityFilters(params);
+  // "Why?" on agent actions: reasons, answers and trust for the rows shown.
+  const why = await loadWhy(user.id, tenantId, data.events.items.map((event) => ({
+    id: event.id, agentId: event.agentId, action: event.action, actorUserId: event.actorUserId ?? null,
+  })));
 
   return <div className="mx-auto max-w-5xl space-y-6 text-zk-text">
     <header className="space-y-2">
@@ -87,40 +94,33 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
     <section id="work" className={panel} aria-labelledby="work-heading">
       <h2 id="work-heading" className="text-xl font-bold">Work History</h2>
       {!data.work.items.length ? <p className="text-sm text-zk-muted">No claims on this page.</p> : null}
-      {data.work.items.map((claim) => (
-        <article key={claim.id} className="space-y-2 border-t border-zk-border pt-3 text-sm">
-          <p>
-            <strong>{claim.agent.name}</strong> · Claim: {claim.status} · Issue: {statusLabel[claim.bug.status]}
-            {claim.releasedAt && (
-              <WhyDialog
-                actionType="claim_release"
-                actionId={claim.id}
-                agentId={claim.agentId}
-                bugId={claim.bug.id}
-              >
-                why?
-              </WhyDialog>
-            )}
-          </p>
-          <IssueLinks bug={claim.bug} />
-          <p>Recorded <LocalTime date={claim.createdAt} /></p>
-          {claim.waitingOnOwnerSince && !claim.releasedAt ? <p className="text-zk-warn-fg">Blocked: waiting for owner guidance since <LocalTime date={claim.waitingOnOwnerSince} />. Claim clocks are paused.</p> : null}
-          {claim.deliverBy ? <p>{claim.bug.pullRequestUrl || claim.releasedAt ? "Recorded deadline" : "Delivery deadline"}: <LocalTime date={claim.deliverBy} /></p> : null}
-          {claim.lastHeartbeatAt ? <p>Last heartbeat: <LocalTime date={claim.lastHeartbeatAt} /></p> : null}
-          {claim.releaseReason ? <p>Release reason: {claim.releaseReason}</p> : null}
-        </article>
-      ))}
+      {data.work.items.map((claim) => <article key={claim.id} className="space-y-2 border-t border-zk-border pt-3 text-sm">
+        <p><strong>{claim.agent.name}</strong> · Claim: {claim.status} · Issue: {statusLabel[claim.bug.status]}</p>
+        <IssueLinks bug={claim.bug} />
+        <p>Recorded <LocalTime date={claim.createdAt} /></p>
+        {claim.waitingOnOwnerSince && !claim.releasedAt ? <p className="text-zk-warn-fg">Blocked: waiting for owner guidance since <LocalTime date={claim.waitingOnOwnerSince} />. Claim clocks are paused.</p> : null}
+        {claim.deliverBy ? <p>{claim.bug.pullRequestUrl || claim.releasedAt ? "Recorded deadline" : "Delivery deadline"}: <LocalTime date={claim.deliverBy} /></p> : null}
+        {claim.lastHeartbeatAt ? <p>Last heartbeat: <LocalTime date={claim.lastHeartbeatAt} /></p> : null}
+        {claim.releaseReason ? <p>Release reason: {claim.releaseReason}</p> : null}
+      </article>)}
       <Pages params={params} stream="work" next={data.work.next} />
     </section>
 
     <section id="events" className={panel} aria-labelledby="events-heading">
       <h2 id="events-heading" className="text-xl font-bold">Recent Activity</h2>
-      <p className="text-sm text-zk-text2">Agent audit summaries, newest first. Supplementary request rows are hidden. Audit retention is 180 days.</p>
+      <p className="text-sm text-zk-text2">Agent audit summaries, newest first. Supplementary request rows are hidden. Audit retention is 180 days. Open <strong>why?</strong> on an agent action to see its reasons, and agree or challenge them.</p>
       {!data.events.items.length ? <p className="text-sm text-zk-muted">No activity on this page.</p> : null}
-      {data.events.items.map((event) => <article key={event.id} className="space-y-2 border-t border-zk-border pt-3 text-sm">
-        <p><strong>{event.agent.name}</strong> · {event.action} · <LocalTime date={event.createdAt} />{event.undoneAt ? " · Undone" : ""}</p>
-        <IssueLinks bug={event.bug} />
-      </article>)}
+      {data.events.items.map((event) => {
+        const view = why.get(event.id);
+        return <article key={event.id} id={`why-${event.id}`} className="scroll-mt-24 space-y-2 border-t border-zk-border pt-3 text-sm">
+          <p><strong>{event.agent.name}</strong> · {event.action} · <LocalTime date={event.createdAt} />{event.undoneAt ? " · Undone" : ""}
+            {view?.state === "challenged" ? <span className="ml-2 rounded-full bg-zk-warn-bg px-2 py-0.5 text-xs font-semibold text-zk-warn-fg">Challenged</span> : null}
+            {view?.state === "answered" ? <span className="ml-2 rounded-full bg-zk-chip px-2 py-0.5 text-xs font-semibold text-zk-text2">Answered</span> : null}
+          </p>
+          <IssueLinks bug={event.bug} />
+          {view ? <WhyPanel auditEventId={event.id} agentName={event.agent.name} view={toPanelView(view)} /> : null}
+        </article>;
+      })}
       <Pages params={params} stream="events" next={data.events.next} />
     </section>
   </div>;

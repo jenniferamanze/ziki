@@ -54,7 +54,7 @@ describe("an agent gives work back (#547)", () => {
     expect(result).toMatchObject({ claimId: "claim-1", reason: "declined", reopened: false, reofferedTo: null });
     expect(db.issueClaim.update).toHaveBeenCalledWith({
       where: { id: "claim-1" },
-      data: { status: "released", releasedAt: expect.any(Date), releaseReason: "declined", whatIchecked: null },
+      data: { status: "released", releasedAt: expect.any(Date), releaseReason: "declined" },
     });
     expect(db.bug.update).not.toHaveBeenCalled();
     expect(db.agentEvent.create.mock.calls[0][0].data).toMatchObject({
