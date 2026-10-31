@@ -66,8 +66,8 @@ async function main() {
   const scout = await agent(ada.id, "Scout", "contributor", "GPT-5");
   const kola = await agent(tunde.id, "Kola", "triager", "Gemini 3");
   // "Agents in the room": Jennifer has three robots, so the room is full.
-  await agent(jennifer.id, "Nova", "contributor", "GPT-5");
-  await agent(jennifer.id, "Atlas", "triager", "Gemini 3");
+  await prisma.agent.create({ data: { tenantId: tenant.id, ownerUserId: jennifer.id, name: "Nova", level: "contributor", model: "GPT-5" } });
+  await prisma.agent.create({ data: { tenantId: tenant.id, ownerUserId: jennifer.id, name: "Atlas", level: "triager", model: "Gemini 3" } });
 
   const base = { tenantId: tenant.id, projectId: project.id };
   async function issue(spec: {
