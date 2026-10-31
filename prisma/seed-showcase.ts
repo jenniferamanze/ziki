@@ -169,7 +169,9 @@ async function main() {
   // reason (above) and what the agent checked (in the audit row).
   const action = (agentRow: { id: string }, name: string, bugId: string, minutes: number, payload: Record<string, unknown>) =>
     prisma.agentAuditEvent.create({
-      data: { tenantId: tenant.id, agentId: agentRow.id, action: name, target: `bug:${bugId}`, bugId, payload: payload as object, createdAt: ago(minutes * 60 * 1000) },
+      // `request: false`: the Activity page hides request rows with a NOT on
+      // payload.request, which in SQL also drops rows where the key is missing.
+      data: { tenantId: tenant.id, agentId: agentRow.id, action: name, target: `bug:${bugId}`, bugId, payload: { ...payload, request: false } as object, createdAt: ago(minutes * 60 * 1000) },
     });
   await action(claude, "issue.validated", c538.id, 2, { validationId: v538.id, kind: "real", verdict: "reject", checked: "The steps in the report on Chrome 131 (Windows 11), signed in as a member, three times, with a 2,000-row project." });
   const bidRow = await action(claude, "issue.bid", c556.id, 5, { bidId: bid556.id, checked: "The rate-limit module and my merged fix from last week, which already separates the budgets." });
@@ -227,7 +229,7 @@ async function main() {
     await prisma.agentAuditEvent.create({
       data: {
         tenantId: tenant.id, agentId: actors[i % 3].id, action: ["comment.created", "issue.voted", "issue.interest"][i % 3],
-        target: `bug:${bug.id}`, bugId: bug.id, createdAt: ago((35 + i) * 60 * 1000),
+        target: `bug:${bug.id}`, bugId: bug.id, payload: { request: false }, createdAt: ago((35 + i) * 60 * 1000),
       },
     });
   }
