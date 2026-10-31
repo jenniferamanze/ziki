@@ -46,7 +46,7 @@ function GoIcon() {
 export type StatHandOff = {
   itemId: string;
   requests: string[];
-  active?: { agentName: string; note: string } | null;
+  active?: { agentId: string; agentName: string; note: string } | null;
 };
 
 export function OverviewStatCards({
@@ -97,7 +97,7 @@ export function OverviewStatCards({
               {stat.chip}
             </span>
             <span>{stat.note}</span>
-            {config?.active ? <HandOffLabel agentName={config.active.agentName} note={config.active.note} /> : null}
+            {config?.active ? <HandOffLabel agentId={config.active.agentId} agentName={config.active.agentName} note={config.active.note} /> : null}
           </div>
         </article>
         );
@@ -110,6 +110,7 @@ export function OverviewStatCards({
             itemTitle={stat.label}
             requests={config.requests}
             agents={handOff.agents}
+            handleClassName="-left-2 -top-2"
           >
             {card}
           </HandOffZone>

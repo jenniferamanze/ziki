@@ -9,7 +9,7 @@ export type HandOffAgent = { id: string; name: string };
 
 /** The small menu at the item: pick a request and the agent gets it in its inbox. */
 export function HandOffMenu({
-  x, y, itemType, itemId, itemTitle, requests, agents, onClose,
+  x, y, itemType, itemId, itemTitle, requests, agents, onClose, initialAgentId, onDone,
 }: {
   x: number;
   y: number;
@@ -19,8 +19,14 @@ export function HandOffMenu({
   requests: string[];
   agents: HandOffAgent[];
   onClose: () => void;
+  /** The robot the item was dropped on, or the first agent. */
+  initialAgentId?: string;
+  /** Called once the agent has the item, before the dashboard refreshes. */
+  onDone?: () => void;
 }) {
-  const [agentId, setAgentId] = useState(agents[0]?.id ?? "");
+  const [agentId, setAgentId] = useState(
+    (initialAgentId && agents.some((agent) => agent.id === initialAgentId) ? initialAgentId : agents[0]?.id) ?? "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const box = useRef<HTMLDivElement>(null);
@@ -49,6 +55,7 @@ export function HandOffMenu({
         setError(result.error);
         return;
       }
+      onDone?.();
       onClose();
       router.refresh();
     });

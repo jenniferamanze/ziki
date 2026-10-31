@@ -146,7 +146,7 @@ export async function listOpenHandOffs(userId: string, tenantId: string) {
     orderBy: { createdAt: "desc" },
     select: {
       id: true, agentId: true, itemType: true, itemId: true, itemTitle: true, request: true,
-      status: true, progressNote: true, agent: { select: { name: true } },
+      status: true, progressNote: true, createdAt: true, agent: { select: { name: true } },
     },
   });
 }

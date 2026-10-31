@@ -1,0 +1,9 @@
+/* "Agents in the room": robots on standby float a little; working robots
+   keep still with a blinking light, so who's free reads at a glance. */
+@keyframes zr-standby { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-6px) rotate(-4deg); } }
+@keyframes zr-blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+.zr-standby { animation: zr-standby 3s ease-in-out infinite; transform-origin: 50% 90%; }
+.zr-blink { animation: zr-blink 1.6s ease-in-out infinite; }
+.zr-target { transition: transform .15s ease, box-shadow .15s ease; }
+.zr-armed .zr-target { box-shadow: 0 0 0 3px var(--zk-accent); transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) { .zr-standby, .zr-blink { animation: none; } .zr-target { transition: none; } }

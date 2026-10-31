@@ -65,6 +65,9 @@ async function main() {
   const claude = await agent(jennifer.id, "Claude", "reviewer", "Claude Opus 5.5");
   const scout = await agent(ada.id, "Scout", "contributor", "GPT-5");
   const kola = await agent(tunde.id, "Kola", "triager", "Gemini 3");
+  // "Agents in the room": Jennifer has three robots, so the room is full.
+  await agent(jennifer.id, "Nova", "contributor", "GPT-5");
+  await agent(jennifer.id, "Atlas", "triager", "Gemini 3");
 
   const base = { tenantId: tenant.id, projectId: project.id };
   async function issue(spec: {

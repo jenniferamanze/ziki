@@ -54,6 +54,8 @@ export type Forecast = {
   clouds: Array<StuckIssue & { waitingLabel: string; note: string }>;
   cloudTotal: number;
   rainbow: boolean;
+  /** Merges in the last 24 hours (the rainbow comes out at ten). */
+  merges: number;
   tomorrow: { outlook: "sunny" | "partly_cloudy"; label: string; note: string; cleared: number; target: number };
   diary: Array<{ kind: "rainbow" | "thunderstorm"; label: string; detail: string }>;
   badge: string;
@@ -231,6 +233,7 @@ export function forecastFor(input: WeatherInput): Forecast {
     clouds: input.stuck.map((issue) => ({ ...issue, waitingLabel: waitingLabel(issue.waitingDays), note: cloudNote(issue.state) })),
     cloudTotal,
     rainbow,
+    merges: input.merges24h,
     tomorrow: {
       outlook: toClear === 0 ? "sunny" : "partly_cloudy",
       label: toClear === 0 ? "Sunny" : "Partly cloudy",

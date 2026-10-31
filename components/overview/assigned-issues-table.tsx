@@ -76,7 +76,7 @@ function typeIconPath(typeName: string | null): string {
 /** "Point and hand off" on an issue row: the three requests, and who is on it. */
 export type IssueHandOff = {
   requests: string[];
-  active?: { agentName: string; note: string } | null;
+  active?: { agentId: string; agentName: string; note: string } | null;
 };
 
 export function AssignedIssuesTable({
@@ -171,7 +171,7 @@ export function AssignedIssuesTable({
                         </span>
                         <span className="flex items-center gap-2 text-xs text-zk-muted">
                           <span>{formatIssueNumber(issue.number)}</span>
-                          {config?.active ? <HandOffLabel agentName={config.active.agentName} note={config.active.note} /> : null}
+                          {config?.active ? <HandOffLabel agentId={config.active.agentId} agentName={config.active.agentName} note={config.active.note} /> : null}
                           {issue.commentCount > 0 ? (
                             <span className="inline-flex items-center gap-1">
                               <svg
@@ -251,6 +251,7 @@ export function AssignedIssuesTable({
                     itemTitle={`${formatIssueNumber(issue.number)} ${issue.title}`}
                     requests={config.requests}
                     agents={handOff.agents}
+                    handleClassName="right-3 top-1/2 -translate-y-1/2"
                   >
                     {cells}
                   </HandOffZone>

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { newIssueHref } from "@/lib/reported-from";
 import { currentWeatherFor } from "@/lib/weather/current";
-import { WeatherCard } from "@/components/weather/weather-card";
+import { DashboardSky } from "@/components/weather/dashboard-sky";
+import { AgentsInRoom, ROOM_MAX, type RoomAgent } from "@/components/agents-in-room";
+import { formatRelativeTime } from "@/lib/format";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
 import { bugInTenant, currentTenantIdFor } from "@/lib/tenant-context";
@@ -32,7 +34,6 @@ import { prisma } from "@/lib/prisma";
 import { openIssueStages } from "@/lib/issue-stage";
 import { listOpenHandOffs } from "@/lib/agent-api/handoff";
 import { handOffActivity, issueRequests, statRequests, STAT_KEYS } from "@/lib/handoff/presets";
-import { HandOffTip } from "@/components/hand-off-tip";
 import type { StatHandOff } from "@/components/overview/stat-cards";
 import type { IssueHandOff } from "@/components/overview/assigned-issues-table";
 
@@ -230,7 +231,7 @@ export default async function DashboardPage() {
   }
   const activeFor = (itemType: string, itemId: string) => {
     const handOff = openHandOffs.find((row) => row.itemType === itemType && row.itemId === itemId);
-    return handOff ? { agentName: handOff.agent.name, note: handOffActivity(handOff) } : null;
+    return handOff ? { agentId: handOff.agentId, agentName: handOff.agent.name, note: handOffActivity(handOff) } : null;
   };
   const pointsToGo = Math.max(0, TARGET_POINTS - pointsThisWeek(historyEntries, now));
   const handOffAgents = agentRows.map((agent) => ({ id: agent.id, name: agent.name }));
@@ -264,20 +265,50 @@ export default async function DashboardPage() {
   }));
 
   const name = firstName(user.name, user.email);
-  // #weather: one card; a lookup failure never blocks the dashboard.
+  // #weather: the sky behind the dashboard; a lookup failure never blocks it.
   const weather = await currentWeatherFor(user.id).catch(() => null);
+  // A stuck issue an agent is already on is being cleared: no cloud for it.
+  const skyClouds = (weather?.forecast.clouds ?? [])
+    .filter((cloud) => !activeFor("issue", cloud.id))
+    .map((cloud) => ({ id: cloud.id, number: cloud.number, title: cloud.title, waitingLabel: cloud.waitingLabel, note: cloud.note }));
+
+  // "Agents in the room": up to three of the person's agents, as robots.
+  const roomAgents: RoomAgent[] = agentRows.slice(0, ROOM_MAX).map((agent) => {
+    const handOff = openHandOffs.find((row) => row.agentId === agent.id);
+    return {
+      id: agent.id,
+      name: agent.name,
+      doing: handOff ? handOffActivity(handOff) : null,
+      why: handOff
+        ? `You asked me to "${handOff.request.toLowerCase()}" on ${handOff.itemTitle}, ${formatRelativeTime(handOff.createdAt, now)}.`
+        : null,
+    };
+  });
 
   return (
-    <div className="min-w-0 space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
+    <div className="relative isolate min-w-0 pb-24">
+      {weather ? (
+        <DashboardSky
+          clouds={skyClouds}
+          rainbow={weather.forecast.rainbow}
+          merges={weather.forecast.merges}
+          agents={handOffAgents.slice(0, ROOM_MAX)}
+        />
+      ) : null}
+      <div className="pointer-events-none relative z-10 min-w-0 space-y-5 [&>*]:pointer-events-auto">
+      <div className="flex flex-wrap items-end justify-between gap-4 [&>*]:pointer-events-auto" style={{ pointerEvents: "none" }}>
+        <div className="flex flex-col gap-1.5 rounded-xl bg-zk-bg pr-3">
           <h1 className="text-[28px] font-extrabold tracking-[-0.02em] text-zk-text">
             Welcome back, {name}
           </h1>
           <p className="text-sm text-zk-muted">
-            Issues, votes and your points for Ziki at a glance.
+            {roomAgents.length > 0
+              ? "Drag a card or an issue onto a robot to hand it over."
+              : "Issues, votes and your points for Ziki at a glance."}
           </p>
         </div>
+        <div className="flex items-end gap-4 rounded-xl bg-zk-bg pl-3">
+        <AgentsInRoom agents={roomAgents} />
         <Link
           href={newIssueHref("/dashboard")}
           className="inline-flex h-[42px] items-center gap-2 rounded-full border border-zk-border bg-zk-surface px-5 text-sm font-semibold text-zk-text hover:bg-zk-chip"
@@ -297,19 +328,17 @@ export default async function DashboardPage() {
           </svg>
           New issue
         </Link>
+        </div>
       </div>
 
-      <HandOffTip hasAgents={handOffAgents.length > 0} />
-
       <OverviewStatCards stats={stats} handOff={{ agents: handOffAgents, byLabel: statHandOffs }} />
-
-      {weather ? <WeatherCard weather={weather} /> : null}
 
       <AssignedIssuesTable issues={assignedIssues} handOff={{ agents: handOffAgents, byIssue: issueHandOffs }} />
 
       <PointsChart entries={chartEntries} nowIso={now.toISOString()} />
 
       <DashboardAgents initial={agents} handOffs={agentHandOffs} />
+      </div>
     </div>
   );
 }

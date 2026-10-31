@@ -66,4 +66,22 @@ describe("Point and hand off", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Pick one of your own agents.");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+
+  it("opens the menu from its grab handle, for keyboard and touch", () => {
+    renderRow();
+    fireEvent.click(screen.getByRole("button", { name: "Hand #544 Export to an agent" }));
+    expect(screen.getByRole("dialog", { name: "Hand off #544 Export" })).toBeInTheDocument();
+  });
+
+  it("can be dragged onto a robot, and tells the robots", () => {
+    const started = vi.fn();
+    window.addEventListener("ziki:handoff-drag-start", started);
+    renderRow();
+    const setData = vi.fn();
+    fireEvent.dragStart(screen.getByText("Export"), { dataTransfer: { setData, effectAllowed: "" } });
+    expect(setData).toHaveBeenCalledWith("application/x-ziki-handoff", expect.stringContaining("\"itemId\":\"b1\""));
+    expect(started).toHaveBeenCalled();
+    window.removeEventListener("ziki:handoff-drag-start", started);
+  });
 });
+

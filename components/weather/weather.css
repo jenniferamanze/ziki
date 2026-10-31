@@ -19,3 +19,36 @@ button.zw-pill { cursor: pointer; }
 button.zw-pill:focus-visible { outline: 3px solid var(--zk-accent); outline-offset: 2px; }
 @media (max-width: 639px) { .zw-sky { height: 300px; } .zw-cloud { transform: scale(.75); } }
 @media (prefers-reduced-motion: reduce) { .zw-cloud, .zw-drop, .zw-gust, .zw-sun, .zw-rainbow, .zw-pop { animation: none; } }
+
+/* The dashboard sky (#weather): clouds are stuck issues drifting behind the
+   cards; the chip floats a little; the merge rainbow keeps drawing itself. */
+:root { --zw-cloud: #ffffff; --zw-cloud-edge: #c3d1ec; --zw-cloud-rest: .9; --zw-cloud-text: #33415e; }
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --zw-cloud: #d5def0; --zw-cloud-edge: #9fb0d6; --zw-cloud-rest: .6; }
+}
+:root[data-theme="dark"] { --zw-cloud: #d5def0; --zw-cloud-edge: #9fb0d6; --zw-cloud-rest: .6; }
+@keyframes zw-cross { from { transform: translateX(0); } to { transform: translateX(calc(100cqw + 420px)); } }
+@keyframes zw-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes zw-fly { to { transform: translateY(-60px) scale(.5); opacity: 0; } }
+@keyframes zw-roll { 0% { stroke-dashoffset: 400; } 45%, 70% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -400; } }
+@keyframes zw-merge-pop { 0%, 30% { opacity: 0; transform: translateY(8px) scale(.8); } 42%, 68% { opacity: 1; transform: none; } 80%, 100% { opacity: 0; transform: translateY(-10px) scale(.9); } }
+.zw-skylayer { container-type: inline-size; }
+.zw-cross { animation: zw-cross 96s linear infinite; }
+.zw-floater { animation: zw-bob 8s ease-in-out infinite; }
+.zw-held, .zw-held .zw-floater { animation-play-state: paused; }
+.zw-leaving { animation: zw-fly .9s ease-in forwards; }
+.zw-chip-bob { animation: zw-bob 4.5s ease-in-out infinite; }
+.zw-drifter { opacity: var(--zw-cloud-rest); transition: opacity .2s ease; }
+.zw-held .zw-drifter { opacity: 1; }
+.zw-roll path { stroke-dasharray: 400; animation: zw-roll 7s ease-in-out infinite; }
+.zw-roll path:nth-child(2) { animation-delay: .15s; }
+.zw-roll path:nth-child(3) { animation-delay: .3s; }
+.zw-roll path:nth-child(4) { animation-delay: .45s; }
+.zw-merge-pop { animation: zw-merge-pop 7s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .zw-cross, .zw-floater, .zw-chip-bob, .zw-merge-pop { animation: none; }
+  /* Still clouds rest where they would be mid-journey. */
+  .zw-cross { transform: translateX(var(--zw-rest, 30cqw)); }
+  .zw-roll path { animation: none; stroke-dasharray: none; }
+  .zw-leaving { animation: none; opacity: 0; }
+}
