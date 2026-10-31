@@ -1,9 +1,24 @@
-export function getDefaultTimeZone(): string {
-  return process.env.TZ || process.env.DEFAULT_TIMEZONE || "Africa/Lagos";
+/**
+ * A time zone Intl accepts, or null. Hosts such as Vercel set TZ to ":UTC"
+ * (POSIX form, leading colon), which Intl.DateTimeFormat rejects with a
+ * RangeError and takes the whole page down.
+ */
+export function usableTimeZone(zone: string | undefined | null): string | null {
+  const name = zone?.trim().replace(/^:/, "");
+  if (!name) return null;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: name });
+    return name;
+  } catch {
+    return null;
+  }
 }
 
-export const defaultTz =
-  process.env.TZ || process.env.DEFAULT_TIMEZONE || "Africa/Lagos";
+export function getDefaultTimeZone(): string {
+  return usableTimeZone(process.env.TZ) ?? usableTimeZone(process.env.DEFAULT_TIMEZONE) ?? "Africa/Lagos";
+}
+
+export const defaultTz = getDefaultTimeZone();
 
 export function formatDate(value: Date | string, timeZone?: string) {
   const date = typeof value === "string" ? new Date(value) : value;
