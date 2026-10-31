@@ -68,3 +68,15 @@ describe("a stuck issue gets picked up", () => {
     expect(screen.getByRole("button", { name: /Stuck issue #512/ })).toBeInTheDocument();
   });
 });
+
+describe("the showcase reel", () => {
+  it("bursts a cloud into sunshine and warms the chip", () => {
+    const warmer = vi.fn();
+    window.addEventListener("ziki:weather-moment", warmer);
+    render(<DashboardSky clouds={clouds} rainbow={false} merges={3} agents={agents} />);
+    act(() => { window.dispatchEvent(new CustomEvent("ziki:demo-burst")); });
+    expect(warmer).toHaveBeenCalledWith(expect.objectContaining({ detail: { kind: "warmer", degrees: 1 } }));
+    expect(screen.getAllByRole("button", { name: /Stuck issue/ }).some((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+    window.removeEventListener("ziki:weather-moment", warmer);
+  });
+});

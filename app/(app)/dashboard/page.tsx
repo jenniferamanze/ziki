@@ -4,6 +4,7 @@ import { currentWeatherFor } from "@/lib/weather/current";
 import { DashboardSky } from "@/components/weather/dashboard-sky";
 import { AgentsInRoom, type RoomAgent } from "@/components/agents-in-room";
 import { WeatherMoments } from "@/components/weather/weather-moments";
+import { isDemoMode } from "@/lib/demo-mode";
 import { formatRelativeTime } from "@/lib/format";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
@@ -287,7 +288,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="relative isolate min-w-0 pt-[76px] pb-24">
+    <div className="relative isolate min-w-0 pt-[96px] pb-28">
       {weather ? (
         <DashboardSky
           clouds={skyClouds}
@@ -299,6 +300,7 @@ export default async function DashboardPage() {
       {weather ? (
         <WeatherMoments
           initial={{ merges: weather.forecast.merges, newReports: weather.forecast.rain.count, temperature: weather.forecast.temperature }}
+          showcase={isDemoMode()}
         />
       ) : null}
       <div className="pointer-events-none relative z-10 min-w-0 space-y-5 [&>*]:pointer-events-auto">

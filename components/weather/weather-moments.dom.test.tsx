@@ -46,3 +46,22 @@ describe("weather moments", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 });
+
+describe("the showcase loop", () => {
+  it("rains from the first second and draws a rainbow within a few", async () => {
+    serve(initial);
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+    const { container } = render(<WeatherMoments initial={initial} showcase />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(container.querySelectorAll(".zw-drop-fall").length).toBeGreaterThan(0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(container.querySelectorAll(".zw-moment-arc").length).toBe(1);
+  });
+
+  it("stays off outside the demo", async () => {
+    serve(initial);
+    const { container } = render(<WeatherMoments initial={initial} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(container.querySelectorAll(".zw-drop-fall").length).toBe(0);
+  });
+});

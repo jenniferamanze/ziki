@@ -2,14 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { WEATHER_MOMENT_EVENT } from "@/lib/handoff/drag";
+import { DEMO_BURST_EVENT, WEATHER_MOMENT_EVENT } from "@/lib/handoff/drag";
 import { momentLabel, momentsBetween, type WeatherMoment, type WeatherSnapshot } from "@/lib/weather/moments";
 import "@/components/weather/weather.css";
 
 const POLL_MS = 20_000;
 const SHOW_MS = 4200;
+/**
+ * Showcase reel: a reviewer has seconds, not minutes. Light rain from the
+ * first second, a rainbow every few seconds, a cloud bursting into sun.
+ */
+export const REEL = { dropMs: 1100, rainbowMs: 4600, burstMs: 8000, firstRainbowMs: 1200, firstBurstMs: 3000 } as const;
 
-type Shown = WeatherMoment & { key: number; left: string };
+type Shown = WeatherMoment & { key: number; left: string; quiet?: boolean };
 
 /**
  * Weather moments (#weather): when something happens in the project while
@@ -17,12 +22,45 @@ type Shown = WeatherMoment & { key: number; left: string };
  * the sky with "+1 merge"; a new report falls as a raindrop that splashes on
  * the cards; a stuck issue someone picks up bursts into sunshine (the sky does
  * that) and the header chip warms up. Checks every 20 seconds while visible.
+ *
+ * In the showcase demo (`showcase`), a reviewer has seconds, not minutes, so
+ * the sky also plays its moments on a loop: a raindrop about every second, a
+ * rainbow every few seconds and a cloud bursting into sun every eight. Never
+ * outside the demo, and never with reduced motion.
  */
-export function WeatherMoments({ initial }: { initial: WeatherSnapshot }) {
+export function WeatherMoments({ initial, showcase = false }: { initial: WeatherSnapshot; showcase?: boolean }) {
   const router = useRouter();
   const last = useRef<WeatherSnapshot>(initial);
   const counter = useRef(0);
   const [shown, setShown] = useState<Shown[]>([]);
+
+  useEffect(() => {
+    if (!showcase || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let drops = 0;
+    const show = (moment: WeatherMoment, labelled = true) => {
+      const added: Shown = { ...moment, key: ++counter.current, left: `${8 + ((counter.current * 29) % 84)}%`, quiet: !labelled };
+      setShown((value) => [...value, added]);
+      window.setTimeout(() => setShown((value) => value.filter((m) => m.key !== added.key)), SHOW_MS);
+    };
+    const visible = () => document.visibilityState === "visible";
+    const timeouts = [
+      window.setTimeout(() => show({ kind: "merge", count: 1 }), REEL.firstRainbowMs),
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent(DEMO_BURST_EVENT)), REEL.firstBurstMs),
+    ];
+    const intervals = [
+      window.setInterval(() => {
+        if (!visible()) return;
+        drops += 1;
+        show({ kind: "report", count: 1 }, drops % 3 === 1);
+      }, REEL.dropMs),
+      window.setInterval(() => { if (visible()) show({ kind: "merge", count: 1 }); }, REEL.rainbowMs),
+      window.setInterval(() => { if (visible()) window.dispatchEvent(new CustomEvent(DEMO_BURST_EVENT)); }, REEL.burstMs),
+    ];
+    return () => {
+      timeouts.forEach((timer) => window.clearTimeout(timer));
+      intervals.forEach((timer) => window.clearInterval(timer));
+    };
+  }, [showcase]);
 
   useEffect(() => {
     let stopped = false;
@@ -75,11 +113,13 @@ export function WeatherMoments({ initial }: { initial: WeatherSnapshot }) {
           <div key={moment.key} className="absolute top-0" style={{ left: moment.left }}>
             <span className="zw-drop-fall block h-[22px] w-[14px] rounded-[50%_50%_50%_50%/60%_60%_40%_40%] bg-[#4f8ff7]" aria-hidden="true" />
             <span className="zw-splash absolute top-[300px] -left-[18px] block h-[12px] w-[50px] rounded-[50%] border-2 border-[#4f8ff7]" aria-hidden="true" />
-            <span className="zw-moment-label absolute top-[268px] left-[-40px] w-[150px] text-center text-base font-extrabold text-zk-text">{momentLabel(moment)}</span>
+            {moment.quiet ? null : (
+              <span className="zw-moment-label absolute top-[268px] left-[-40px] w-[150px] text-center text-base font-extrabold text-zk-text">{momentLabel(moment)}</span>
+            )}
           </div>
         ),
       )}
-      <span className="sr-only">{shown.map((moment) => momentLabel(moment)).join(", ")}</span>
+      {showcase ? null : <span className="sr-only">{shown.map((moment) => momentLabel(moment)).join(", ")}</span>}
     </div>
   );
 }

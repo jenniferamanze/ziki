@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import { HandOffMenu, type HandOffAgent } from "@/components/hand-off-menu";
-import { CHECK_WEATHER_EVENT, endHandOffDrag, startHandOffDrag } from "@/lib/handoff/drag";
+import { CHECK_WEATHER_EVENT, DEMO_BURST_EVENT, endHandOffDrag, startHandOffDrag, WEATHER_MOMENT_EVENT } from "@/lib/handoff/drag";
 import { issueRequests } from "@/lib/handoff/presets";
 import "@/components/weather/weather.css";
 
@@ -33,6 +33,43 @@ function assignLanes(previous: Map<string, number>, ids: string[]): Map<string, 
     if (free >= 0) next.set(id, free);
   }
   return next;
+}
+
+/** Three soft, puffy shapes: overlapping rounded puffs on a rounded base. */
+const SHAPES: Array<{ puffs: Array<[number, number, number]>; base: [number, number, number, number] }> = [
+  { puffs: [[46, 56, 26], [80, 40, 34], [114, 54, 25]], base: [22, 52, 118, 30] },
+  { puffs: [[40, 58, 21], [68, 43, 27], [100, 36, 30], [129, 56, 21]], base: [20, 56, 130, 26] },
+  { puffs: [[56, 50, 30], [97, 46, 32], [126, 62, 17]], base: [28, 52, 116, 30] },
+];
+
+function shapeFor(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return SHAPES[hash % SHAPES.length]!;
+}
+
+/** A soft cloud: puffs with a light-to-shade gradient and a gentle shadow, no outline. */
+function SoftCloud({ id, number }: { id: string; number: number }) {
+  const shape = shapeFor(id);
+  const gradient = `zw-cloud-${id}`;
+  const [bx, by, bw, bh] = shape.base;
+  return (
+    <>
+      <svg className="zw-softcloud" width="160" height="90" viewBox="0 0 160 90" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" style={{ stopColor: "var(--zw-cloud-top)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--zw-cloud-bottom)" }} />
+          </linearGradient>
+        </defs>
+        <g fill={`url(#${gradient})`}>
+          {shape.puffs.map(([cx, cy, r]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} />)}
+          <rect x={bx} y={by} width={bw} height={bh} rx={bh / 2} />
+        </g>
+      </svg>
+      <span className="absolute inset-x-0 top-[50px] text-center text-xs font-extrabold text-[var(--zw-cloud-text)]">#{number}</span>
+    </>
+  );
 }
 
 /** A small sun flies from the cleared cloud into the header chip. */
@@ -87,6 +124,37 @@ export function DashboardSky({
   const [previous, setPrevious] = useState(clouds);
   const elements = useRef(new Map<string, HTMLElement>());
   const flown = useRef(new Set<string>());
+  // Showcase reel: a cloud bursts into sun for show, rests, then drifts back.
+  const [showBurst, setShowBurst] = useState<string | null>(null);
+  const [resting, setResting] = useState<string[]>([]);
+  const reel = useRef({ clouds, held, open: open?.id ?? null, resting });
+  useEffect(() => {
+    reel.current = { clouds, held, open: open?.id ?? null, resting };
+  });
+
+  useEffect(() => {
+    const timers: number[] = [];
+    const burst = () => {
+      const { clouds: now, held: holding, open: opened, resting: away } = reel.current;
+      const candidates = now.filter((c) => c.id !== holding && c.id !== opened && !away.includes(c.id) && elements.current.has(c.id));
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      if (!pick) return;
+      const rect = elements.current.get(pick.id)?.getBoundingClientRect();
+      if (rect) sendSunbeam(rect);
+      window.dispatchEvent(new CustomEvent(WEATHER_MOMENT_EVENT, { detail: { kind: "warmer", degrees: 1 } }));
+      setShowBurst(pick.id);
+      timers.push(window.setTimeout(() => {
+        setShowBurst(null);
+        setResting((value) => [...value, pick.id]);
+      }, 1200));
+      timers.push(window.setTimeout(() => setResting((value) => value.filter((id) => id !== pick.id)), 7000));
+    };
+    window.addEventListener(DEMO_BURST_EVENT, burst);
+    return () => {
+      window.removeEventListener(DEMO_BURST_EVENT, burst);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
 
   // A cloud that left the sky (someone picked the issue up) bursts into sun.
   // Adjusted while rendering, so the burst starts in the same frame.
@@ -128,7 +196,8 @@ export function DashboardSky({
   }, []);
 
   const burstingIds = new Set(bursting.map((c) => c.id));
-  const shown = [...clouds.filter((c) => lanes.has(c.id)), ...bursting.filter((c) => lanes.has(c.id))];
+  if (showBurst) burstingIds.add(showBurst);
+  const shown = [...clouds.filter((c) => lanes.has(c.id) && !resting.includes(c.id)), ...bursting.filter((c) => lanes.has(c.id))];
   const openCloud = open ? clouds.find((c) => c.id === open.id) ?? null : null;
 
   return (
@@ -174,10 +243,7 @@ export function DashboardSky({
                 aria-label={`Stuck issue ${title}, waiting ${cloud.waitingLabel}`}
                 className="zw-drifter relative block cursor-grab border-0 bg-transparent p-0"
               >
-                <svg width="150" height="78" viewBox="0 0 150 78" aria-hidden="true">
-                  <path d="M34 72h84a27 27 0 0 0 2-54 36 36 0 0 0-68-2A25 25 0 0 0 34 72z" fill="var(--zw-cloud)" stroke="var(--zw-cloud-edge)" strokeWidth="2" />
-                </svg>
-                <span className="absolute inset-x-0 top-[34px] text-center text-xs font-extrabold text-[var(--zw-cloud-text)]">#{cloud.number}</span>
+                <SoftCloud id={cloud.id} number={cloud.number} />
                 {isBursting ? (
                   <span className="zw-sunrays absolute top-1/2 left-1/2 -mt-[40px] -ml-[40px] block h-20 w-20 rounded-full bg-[radial-gradient(circle,#ffd166_0%,rgba(255,209,102,.4)_45%,transparent_70%)]" aria-hidden="true" />
                 ) : null}

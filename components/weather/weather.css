@@ -22,11 +22,11 @@ button.zw-pill:focus-visible { outline: 3px solid var(--zk-accent); outline-offs
 
 /* The dashboard sky (#weather): clouds are stuck issues drifting behind the
    cards; the chip floats a little; the merge rainbow keeps drawing itself. */
-:root { --zw-cloud: #ffffff; --zw-cloud-edge: #c3d1ec; --zw-cloud-rest: .9; --zw-cloud-text: #33415e; }
+:root { --zw-cloud: #ffffff; --zw-cloud-edge: #c3d1ec; --zw-cloud-rest: .92; --zw-cloud-text: #33415e; --zw-cloud-top: #ffffff; --zw-cloud-bottom: #e3ebf8; --zw-cloud-shadow: rgba(31, 95, 217, .14); }
 @media screen and (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --zw-cloud: #d5def0; --zw-cloud-edge: #9fb0d6; --zw-cloud-rest: .6; }
+  :root:not([data-theme="light"]) { --zw-cloud: #d5def0; --zw-cloud-edge: #9fb0d6; --zw-cloud-rest: .62; --zw-cloud-top: #eef2fa; --zw-cloud-bottom: #b8c5df; --zw-cloud-shadow: rgba(0, 0, 0, .35); }
 }
-:root[data-theme="dark"] { --zw-cloud: #d5def0; --zw-cloud-edge: #9fb0d6; --zw-cloud-rest: .6; }
+:root[data-theme="dark"] { --zw-cloud: #d5def0; --zw-cloud-edge: #9fb0d6; --zw-cloud-rest: .62; --zw-cloud-top: #eef2fa; --zw-cloud-bottom: #b8c5df; --zw-cloud-shadow: rgba(0, 0, 0, .35); }
 @keyframes zw-cross { from { transform: translateX(0); } to { transform: translateX(calc(100cqw + 420px)); } }
 @keyframes zw-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes zw-fly { to { transform: translateY(-60px) scale(.5); opacity: 0; } }
@@ -75,3 +75,20 @@ button.zw-pill:focus-visible { outline: 3px solid var(--zk-accent); outline-offs
   .zw-moment-arc path, .zw-drop-fall, .zw-splash, .zw-bursting, .zw-sunrays { animation: none; }
   .zw-moment-label, .zw-warm { animation: none; }
 }
+
+/* The weather icon is alive: glowing sun, turning rays, drifting cloud, falling rain. */
+@keyframes zw-icon-spin { to { transform: rotate(360deg); } }
+@keyframes zw-icon-glow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.16); } }
+@keyframes zw-icon-drift { 0%, 100% { transform: translateX(-26px); } 50% { transform: translateX(26px); } }
+@keyframes zw-icon-rain { 0% { transform: translateY(-40px); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(70px); opacity: 0; } }
+.zw-icon-rays { transform-box: view-box; transform-origin: 168px 92px; animation: zw-icon-spin 8s linear infinite; }
+.zw-icon-sun { transform-box: fill-box; transform-origin: center; animation: zw-icon-glow 3s ease-in-out infinite; }
+.zw-icon-cloud { animation: zw-icon-drift 3.6s ease-in-out infinite; }
+.zw-icon-drop { animation: zw-icon-rain .9s linear infinite; }
+.zw-icon-drop-2 { animation-delay: .35s; }
+.zw-icon-drop-3 { animation-delay: .7s; }
+@media (prefers-reduced-motion: reduce) {
+  .zw-icon-rays, .zw-icon-sun, .zw-icon-cloud, .zw-icon-drop { animation: none; }
+}
+
+.zw-softcloud { filter: drop-shadow(0 8px 12px var(--zw-cloud-shadow)); }

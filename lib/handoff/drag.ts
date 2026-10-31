@@ -13,6 +13,8 @@ export const DRAG_END_EVENT = "ziki:handoff-drag-end";
 export const CHECK_WEATHER_EVENT = "ziki:check-weather";
 /** Weather moments: the project's weather changed; detail is the moment. */
 export const WEATHER_MOMENT_EVENT = "ziki:weather-moment";
+/** Showcase reel: the sky bursts one cloud into sunshine for show. */
+export const DEMO_BURST_EVENT = "ziki:demo-burst";
 
 export type HandOffDragItem = {
   itemType: HandOffItemType;
