@@ -2,7 +2,8 @@ import Link from "next/link";
 import { newIssueHref } from "@/lib/reported-from";
 import { currentWeatherFor } from "@/lib/weather/current";
 import { DashboardSky } from "@/components/weather/dashboard-sky";
-import { AgentsInRoom, ROOM_MAX, type RoomAgent } from "@/components/agents-in-room";
+import { AgentsInRoom, type RoomAgent } from "@/components/agents-in-room";
+import { WeatherMoments } from "@/components/weather/weather-moments";
 import { formatRelativeTime } from "@/lib/format";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
@@ -33,7 +34,7 @@ import { formatPoints, TARGET_POINTS } from "@/lib/points/rules";
 import { prisma } from "@/lib/prisma";
 import { openIssueStages } from "@/lib/issue-stage";
 import { listOpenHandOffs } from "@/lib/agent-api/handoff";
-import { handOffActivity, issueRequests, statRequests, STAT_KEYS } from "@/lib/handoff/presets";
+import { handOffActivity, issueRequests, ROOM_MAX, statRequests, STAT_KEYS } from "@/lib/handoff/presets";
 import type { StatHandOff } from "@/components/overview/stat-cards";
 import type { IssueHandOff } from "@/components/overview/assigned-issues-table";
 
@@ -286,7 +287,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="relative isolate min-w-0 pb-24">
+    <div className="relative isolate min-w-0 pt-[76px] pb-24">
       {weather ? (
         <DashboardSky
           clouds={skyClouds}
@@ -295,9 +296,14 @@ export default async function DashboardPage() {
           agents={handOffAgents.slice(0, ROOM_MAX)}
         />
       ) : null}
+      {weather ? (
+        <WeatherMoments
+          initial={{ merges: weather.forecast.merges, newReports: weather.forecast.rain.count, temperature: weather.forecast.temperature }}
+        />
+      ) : null}
       <div className="pointer-events-none relative z-10 min-w-0 space-y-5 [&>*]:pointer-events-auto">
       <div className="flex flex-wrap items-end justify-between gap-4 [&>*]:pointer-events-auto" style={{ pointerEvents: "none" }}>
-        <div className="flex flex-col gap-1.5 rounded-xl bg-zk-bg pr-3">
+        <div className="flex flex-col gap-1.5">
           <h1 className="text-[28px] font-extrabold tracking-[-0.02em] text-zk-text">
             Welcome back, {name}
           </h1>
@@ -307,7 +313,7 @@ export default async function DashboardPage() {
               : "Issues, votes and your points for Ziki at a glance."}
           </p>
         </div>
-        <div className="flex items-end gap-4 rounded-xl bg-zk-bg pl-3">
+        <div className="flex items-end gap-4">
         <AgentsInRoom agents={roomAgents} />
         <Link
           href={newIssueHref("/dashboard")}

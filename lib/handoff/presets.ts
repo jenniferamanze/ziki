@@ -17,6 +17,13 @@ export type StatKey = (typeof STAT_KEYS)[keyof typeof STAT_KEYS];
 
 export const HANDOFF_REQUEST_MAX = 300;
 
+/**
+ * "Agents in the room": at most three robots stand in the dashboard's title
+ * row; the rest are in Your agents below. Kept here, not in the client
+ * component, because a server page can't read values from a client module.
+ */
+export const ROOM_MAX = 3;
+
 export function statRequests(key: StatKey, context: { pointsToGo: number }): string[] {
   switch (key) {
     case "points":

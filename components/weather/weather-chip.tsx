@@ -5,7 +5,8 @@ import type { Condition } from "@/lib/weather/forecast";
 import { WeatherIcon } from "@/components/weather/weather-icon";
 import dynamic from "next/dynamic";
 import type { HandOffAgent } from "@/components/hand-off-menu";
-import { CHECK_WEATHER_EVENT } from "@/lib/handoff/drag";
+import { CHECK_WEATHER_EVENT, WEATHER_MOMENT_EVENT } from "@/lib/handoff/drag";
+import type { WeatherMoment } from "@/lib/weather/moments";
 import { issueRequests } from "@/lib/handoff/presets";
 import "@/components/weather/weather.css";
 
@@ -40,16 +41,29 @@ export function WeatherChip() {
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
 
+  const [warmer, setWarmer] = useState<{ key: number; degrees: number } | null>(null);
+
   useEffect(() => {
     let alive = true;
-    fetch("/api/weather/current")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body: { weather: ChipWeather | null } | null) => {
-        if (alive && body?.weather) setWeather(body.weather);
-      })
-      .catch(() => {});
+    const load = () =>
+      fetch("/api/weather/current", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body: { weather: ChipWeather | null } | null) => {
+          if (alive && body?.weather) setWeather(body.weather);
+        })
+        .catch(() => {});
+    void load();
+    // Weather moments: something happened in the project. Reload, and when
+    // it got warmer show the degrees rising out of the chip for a moment.
+    const onMoment = (event: Event) => {
+      const moment = (event as CustomEvent<WeatherMoment>).detail;
+      if (moment?.kind === "warmer") setWarmer({ key: Date.now(), degrees: moment.degrees });
+      void load();
+    };
+    window.addEventListener(WEATHER_MOMENT_EVENT, onMoment);
     return () => {
       alive = false;
+      window.removeEventListener(WEATHER_MOMENT_EVENT, onMoment);
     };
   }, []);
 
@@ -76,8 +90,19 @@ export function WeatherChip() {
 
   return (
     <div ref={root} className="relative">
+      {warmer ? (
+        <span
+          key={warmer.key}
+          aria-hidden="true"
+          onAnimationEnd={() => setWarmer(null)}
+          className="zw-warm pointer-events-none absolute -top-3 right-2 z-10 text-sm font-extrabold text-amber-600"
+        >
+          +{warmer.degrees}°
+        </span>
+      ) : null}
       <button
         ref={button}
+        data-weather-chip=""
         type="button"
         aria-expanded={open}
         aria-controls={panelId}

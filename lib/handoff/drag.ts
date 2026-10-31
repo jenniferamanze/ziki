@@ -11,6 +11,8 @@ export const DRAG_START_EVENT = "ziki:handoff-drag-start";
 export const DRAG_END_EVENT = "ziki:handoff-drag-end";
 /** The header weather chip asks the dashboard clouds to show their titles. */
 export const CHECK_WEATHER_EVENT = "ziki:check-weather";
+/** Weather moments: the project's weather changed; detail is the moment. */
+export const WEATHER_MOMENT_EVENT = "ziki:weather-moment";
 
 export type HandOffDragItem = {
   itemType: HandOffItemType;

@@ -125,6 +125,9 @@ async function main() {
   const c512 = await issue({ title: "Settings page loads slowly", status: "open", reporter: ada, created: 6 * DAY, updated: 3 * DAY });
   const c538 = await issue({ title: "Export button does nothing on Safari", status: "in_progress", reporter: jennifer, assignee: ada, created: 7 * DAY, updated: 2 * DAY + 4 * HOUR });
   const c556 = await issue({ title: "Heartbeats spend the write budget", status: "in_progress", reporter: ada, assignee: jennifer, pr: 1388, created: 8 * DAY, updated: 4 * DAY });
+  // Two more stuck issues, so the dashboard sky never looks sparse.
+  await issue({ title: "Leaderboard skips ties at the cut-off", status: "open", reporter: tunde, created: 8 * DAY, updated: 4 * DAY });
+  await issue({ title: "Milestone dates show in UTC, not local time", status: "open", reporter: ada, created: 10 * DAY, updated: 6 * DAY });
 
   // Assigned to Jennifer, fresh.
   await issue({ title: "Refusals never mention the triager clearance", status: "in_progress", reporter: jennifer, assignee: jennifer, created: 2 * DAY, updated: 3 * HOUR, votes: 5 });

@@ -4,6 +4,7 @@ import { useEffect, useState, type DragEvent } from "react";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { HandOffMenu } from "@/components/hand-off-menu";
 import { decodeDragItem, DRAG_END_EVENT, DRAG_START_EVENT, HANDOFF_MIME, isHandOffDrag, type HandOffDragItem } from "@/lib/handoff/drag";
+import { ROOM_MAX } from "@/lib/handoff/presets";
 import "@/components/agents-room.css";
 
 export type RoomAgent = {
@@ -14,8 +15,6 @@ export type RoomAgent = {
   why: string | null;
 };
 
-/** At most three robots stand in the room; the rest are in Your agents below. */
-export const ROOM_MAX = 3;
 
 /**
  * "Agents in the room" (dashboard title row): the person's agents as their

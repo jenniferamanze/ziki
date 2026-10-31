@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type DragEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { createPortal } from "react-dom";
 import { HandOffMenu, type HandOffAgent } from "@/components/hand-off-menu";
 import { CHECK_WEATHER_EVENT, endHandOffDrag, startHandOffDrag } from "@/lib/handoff/drag";
 import { issueRequests } from "@/lib/handoff/presets";
@@ -8,19 +9,61 @@ import "@/components/weather/weather.css";
 
 export type SkyCloud = { id: string; number: number; title: string; waitingLabel: string; note: string };
 
-/** Where each cloud travels: two lanes, staggered so one is always on its way. */
+/**
+ * Where clouds travel: a lane above the welcome line and one below the last
+ * section, three slots each, staggered so one is always on its way.
+ */
 const LANES: Array<{ lane: "top" | "bottom"; delay: string; rest: string }> = [
-  { lane: "top", delay: "-6s", rest: "18cqw" },
-  { lane: "bottom", delay: "-30s", rest: "52cqw" },
-  { lane: "top", delay: "-54s", rest: "64cqw" },
-  { lane: "bottom", delay: "-78s", rest: "12cqw" },
+  { lane: "top", delay: "-8s", rest: "14cqw" },
+  { lane: "bottom", delay: "-24s", rest: "48cqw" },
+  { lane: "top", delay: "-40s", rest: "40cqw" },
+  { lane: "bottom", delay: "-56s", rest: "10cqw" },
+  { lane: "top", delay: "-72s", rest: "68cqw" },
+  { lane: "bottom", delay: "-88s", rest: "74cqw" },
 ];
+
+/** Keeps each cloud in the lane it started in, so none jumps when another leaves. */
+function assignLanes(previous: Map<string, number>, ids: string[]): Map<string, number> {
+  const next = new Map<string, number>();
+  for (const id of ids) if (previous.has(id)) next.set(id, previous.get(id)!);
+  for (const id of ids) {
+    if (next.has(id)) continue;
+    const used = new Set(next.values());
+    const free = LANES.findIndex((_, index) => !used.has(index));
+    if (free >= 0) next.set(id, free);
+  }
+  return next;
+}
+
+/** A small sun flies from the cleared cloud into the header chip. */
+function sendSunbeam(from: DOMRect) {
+  const chip = document.querySelector("[data-weather-chip]");
+  if (!chip || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const to = chip.getBoundingClientRect();
+  const sun = document.createElement("span");
+  sun.setAttribute("aria-hidden", "true");
+  Object.assign(sun.style, {
+    position: "fixed", left: `${from.left + from.width / 2 - 9}px`, top: `${from.top + from.height / 2 - 9}px`,
+    width: "18px", height: "18px", borderRadius: "999px", background: "#ffc54d",
+    boxShadow: "0 0 18px 6px rgba(255,190,60,.6)", zIndex: "60", pointerEvents: "none",
+  });
+  document.body.appendChild(sun);
+  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+  const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+  const flight = sun.animate(
+    [{ transform: "translate(0,0) scale(1)" }, { transform: `translate(${dx}px, ${dy}px) scale(.5)`, opacity: 0.9 }],
+    { duration: 1100, easing: "cubic-bezier(.4,0,.2,1)" },
+  );
+  flight.onfinish = () => sun.remove();
+}
 
 /**
  * Ziki weather on the dashboard (#weather): each stuck issue is a cloud that
- * drifts slowly behind the cards, visible in the open space above and below
- * them. Hover one to stop it and read it; click it to hand it to an agent, or
- * drag it onto a robot. On a merge-rainbow day the rainbow keeps drawing
+ * drifts slowly behind the cards, in the open sky above the welcome line and
+ * below the last section. Hover one to stop it and read it; click it to hand
+ * it to an agent, or drag it onto a robot. When a stuck issue gets picked up
+ * (by you, an agent or a teammate), its cloud bursts into sunshine that flies
+ * into the header chip. On a merge-rainbow day the rainbow keeps drawing
  * itself, with the day's merges popping out of it.
  */
 export function DashboardSky({
@@ -35,11 +78,40 @@ export function DashboardSky({
   agents: HandOffAgent[];
 }) {
   const [held, setHeld] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState<{ id: string; x: number; y: number } | null>(null);
   const [checking, setChecking] = useState(false);
   const [rainbowOpen, setRainbowOpen] = useState(false);
   const [menu, setMenu] = useState<{ cloud: SkyCloud; agentId: string; x: number; y: number } | null>(null);
+  const [bursting, setBursting] = useState<SkyCloud[]>([]);
+  const [lanes, setLanes] = useState(() => assignLanes(new Map(), clouds.map((c) => c.id)));
+  const [previous, setPrevious] = useState(clouds);
+  const elements = useRef(new Map<string, HTMLElement>());
+  const flown = useRef(new Set<string>());
+
+  // A cloud that left the sky (someone picked the issue up) bursts into sun.
+  // Adjusted while rendering, so the burst starts in the same frame.
+  if (previous !== clouds) {
+    const ids = new Set(clouds.map((c) => c.id));
+    const gone = previous.filter((c) => !ids.has(c.id) && !bursting.some((b) => b.id === c.id));
+    setPrevious(clouds);
+    setLanes(assignLanes(lanes, [...bursting.map((c) => c.id), ...gone.map((c) => c.id), ...clouds.map((c) => c.id)]));
+    if (gone.length) setBursting([...bursting, ...gone]);
+  }
+
+  // Send each bursting cloud's sunshine to the chip once, then let it go.
+  useEffect(() => {
+    const fresh = bursting.filter((c) => !flown.current.has(c.id));
+    if (!fresh.length) return;
+    for (const cloud of fresh) {
+      flown.current.add(cloud.id);
+      const rect = elements.current.get(cloud.id)?.getBoundingClientRect();
+      if (rect) sendSunbeam(rect);
+    }
+    const timer = window.setTimeout(() => {
+      setBursting((value) => value.filter((c) => !fresh.some((f) => f.id === c.id)));
+    }, 1300);
+    return () => window.clearTimeout(timer);
+  }, [bursting]);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -55,17 +127,20 @@ export function DashboardSky({
     };
   }, []);
 
-  const shown = clouds.slice(0, LANES.length);
+  const burstingIds = new Set(bursting.map((c) => c.id));
+  const shown = [...clouds.filter((c) => lanes.has(c.id)), ...bursting.filter((c) => lanes.has(c.id))];
+  const openCloud = open ? clouds.find((c) => c.id === open.id) ?? null : null;
 
   return (
     <div aria-label="Today's sky" className="zw-skylayer pointer-events-none absolute inset-0 z-0 overflow-hidden">
-      {shown.map((cloud, index) => {
-        const lane = LANES[index]!;
-        const active = held === cloud.id || open === cloud.id;
+      {shown.map((cloud) => {
+        const lane = LANES[lanes.get(cloud.id)!]!;
+        const isBursting = burstingIds.has(cloud.id);
+        const active = held === cloud.id || open?.id === cloud.id || isBursting;
         const title = `#${cloud.number} ${cloud.title}`;
         const style = {
           left: "-170px",
-          top: lane.lane === "top" ? "6px" : undefined,
+          top: lane.lane === "top" ? "2px" : undefined,
           bottom: lane.lane === "bottom" ? "4px" : undefined,
           animationDelay: lane.delay,
           zIndex: active ? 30 : 0,
@@ -73,10 +148,15 @@ export function DashboardSky({
         } as CSSProperties;
         return (
           <div key={cloud.id} className={`zw-cross pointer-events-auto absolute ${active ? "zw-held" : ""}`} style={style}>
-            <div className={`zw-floater ${leaving[cloud.id] ? "zw-leaving" : ""}`}>
+            <div className={`zw-floater ${isBursting ? "zw-bursting" : ""}`}>
               <button
                 type="button"
-                draggable={agents.length > 0}
+                ref={(element) => {
+                  if (element) elements.current.set(cloud.id, element);
+                  else elements.current.delete(cloud.id);
+                }}
+                disabled={isBursting}
+                draggable={agents.length > 0 && !isBursting}
                 onDragStart={(event: DragEvent) => {
                   setOpen(null);
                   startHandOffDrag(event.dataTransfer, { itemType: "issue", itemId: cloud.id, itemTitle: title, requests: issueRequests() });
@@ -86,8 +166,11 @@ export function DashboardSky({
                 onMouseLeave={() => setHeld(null)}
                 onFocus={() => setHeld(cloud.id)}
                 onBlur={() => setHeld(null)}
-                onClick={() => setOpen(open === cloud.id ? null : cloud.id)}
-                aria-expanded={open === cloud.id}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setOpen(open?.id === cloud.id ? null : { id: cloud.id, x: Math.max(8, Math.min(rect.left, window.innerWidth - 300)), y: rect.bottom + 6 });
+                }}
+                aria-expanded={open?.id === cloud.id}
                 aria-label={`Stuck issue ${title}, waiting ${cloud.waitingLabel}`}
                 className="zw-drifter relative block cursor-grab border-0 bg-transparent p-0"
               >
@@ -95,39 +178,16 @@ export function DashboardSky({
                   <path d="M34 72h84a27 27 0 0 0 2-54 36 36 0 0 0-68-2A25 25 0 0 0 34 72z" fill="var(--zw-cloud)" stroke="var(--zw-cloud-edge)" strokeWidth="2" />
                 </svg>
                 <span className="absolute inset-x-0 top-[34px] text-center text-xs font-extrabold text-[var(--zw-cloud-text)]">#{cloud.number}</span>
+                {isBursting ? (
+                  <span className="zw-sunrays absolute top-1/2 left-1/2 -mt-[40px] -ml-[40px] block h-20 w-20 rounded-full bg-[radial-gradient(circle,#ffd166_0%,rgba(255,209,102,.4)_45%,transparent_70%)]" aria-hidden="true" />
+                ) : null}
               </button>
-              {checking || active ? (
+              {(checking || held === cloud.id) && !isBursting ? (
                 <span className="mt-0.5 block max-w-[220px] rounded-lg border border-zk-border bg-zk-surface px-2 py-0.5 text-[11px] font-bold text-zk-text">
                   {cloud.title}
                 </span>
               ) : null}
             </div>
-            {open === cloud.id ? (
-              <div className="absolute top-[84px] left-0 z-40 flex w-[280px] flex-col gap-2 rounded-[14px] border border-zk-border bg-zk-surface p-3.5 text-sm text-zk-text shadow-[0_10px_30px_rgb(0_0_0/0.18)]">
-                <strong>{title}</strong>
-                <span className="text-zk-muted">Waiting {cloud.waitingLabel}. {cloud.note}</span>
-                {agents.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {agents.map((agent) => (
-                      <button
-                        key={agent.id}
-                        type="button"
-                        onClick={(event) => {
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          setMenu({ cloud, agentId: agent.id, x: Math.max(8, Math.min(rect.left, window.innerWidth - 304)), y: rect.bottom + 8 });
-                        }}
-                        className="min-h-[34px] rounded-full bg-zk-accent px-3 text-xs font-bold text-white hover:opacity-90"
-                      >
-                        Give to {agent.name}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-xs text-zk-muted">Connect an agent to hand stuck issues over.</span>
-                )}
-                {agents.length > 0 ? <span className="text-xs text-zk-muted">Or drag the cloud onto a robot.</span> : null}
-              </div>
-            ) : null}
           </div>
         );
       })}
@@ -138,9 +198,9 @@ export function DashboardSky({
           onClick={() => setRainbowOpen((value) => !value)}
           aria-expanded={rainbowOpen}
           aria-label={`Merge rainbow: ${merges} merges in the last day`}
-          className="pointer-events-auto absolute right-6 bottom-2 border-0 bg-transparent p-0 opacity-70 hover:opacity-100"
+          className="pointer-events-auto absolute right-6 bottom-2 border-0 bg-transparent p-0 opacity-80 hover:opacity-100"
         >
-          <span className="zw-merge-pop absolute top-[52px] left-1/2 -ml-[50px] w-[100px] rounded-full bg-zk-accent py-1 text-center text-[13px] font-extrabold text-white" aria-hidden="true">
+          <span className="zw-merge-pop absolute inset-x-0 top-[50px] text-center text-[15px] font-extrabold text-zk-text [text-shadow:0_1px_8px_var(--zk-bg)]" aria-hidden="true">
             +{merges} merges
           </span>
           <svg className="zw-roll" width="220" height="100" viewBox="0 0 260 120" fill="none" aria-hidden="true">
@@ -158,8 +218,46 @@ export function DashboardSky({
         </div>
       ) : null}
 
-      {menu ? (
-        <div className="pointer-events-auto">
+      {open && openCloud && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-label={`#${openCloud.number} ${openCloud.title}`}
+              className="fixed z-50 flex w-[290px] flex-col gap-2 rounded-[14px] border border-zk-border bg-zk-surface p-3.5 text-sm text-zk-text shadow-[0_14px_36px_rgb(0_0_0/0.22)]"
+              style={{ left: open.x, top: open.y }}
+            >
+              <strong>#{openCloud.number} {openCloud.title}</strong>
+              <span className="text-zk-muted">Waiting {openCloud.waitingLabel}. {openCloud.note}</span>
+              {agents.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {agents.map((agent) => (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={(event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        setMenu({ cloud: openCloud, agentId: agent.id, x: Math.max(8, Math.min(rect.left, window.innerWidth - 304)), y: rect.bottom + 8 });
+                      }}
+                      className="min-h-[34px] rounded-full bg-zk-accent px-3 text-xs font-bold text-white hover:opacity-90"
+                    >
+                      Give to {agent.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs text-zk-muted">Connect an agent to hand stuck issues over.</span>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                {agents.length > 0 ? <span className="text-xs text-zk-muted">Or drag the cloud onto a robot.</span> : <span />}
+                <button type="button" onClick={() => setOpen(null)} className="text-xs font-semibold text-zk-muted hover:text-zk-text">Close</button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {menu && typeof document !== "undefined"
+        ? createPortal(
           <HandOffMenu
             x={menu.x}
             y={menu.y}
@@ -169,14 +267,14 @@ export function DashboardSky({
             requests={issueRequests()}
             agents={agents}
             initialAgentId={menu.agentId}
-            onDone={() => setLeaving((value) => ({ ...value, [menu.cloud.id]: true }))}
             onClose={() => {
               setMenu(null);
               setOpen(null);
             }}
-          />
-        </div>
-      ) : null}
+          />,
+          document.body,
+        )
+        : null}
     </div>
   );
 }

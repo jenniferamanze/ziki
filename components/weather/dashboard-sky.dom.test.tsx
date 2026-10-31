@@ -57,3 +57,14 @@ describe("the dashboard sky", () => {
     expect(screen.queryByRole("button", { name: /Merge rainbow/ })).not.toBeInTheDocument();
   });
 });
+
+describe("a stuck issue gets picked up", () => {
+  it("bursts its cloud into sunshine, then lets it go", async () => {
+    const { rerender } = render(<DashboardSky clouds={clouds} rainbow={false} merges={3} agents={agents} />);
+    rerender(<DashboardSky clouds={[clouds[1]!]} rainbow={false} merges={3} agents={agents} />);
+    const bursting = screen.getByRole("button", { name: /Stuck issue #544/ });
+    expect(bursting).toBeDisabled();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Stuck issue #544/ })).not.toBeInTheDocument(), { timeout: 2000 });
+    expect(screen.getByRole("button", { name: /Stuck issue #512/ })).toBeInTheDocument();
+  });
+});

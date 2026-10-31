@@ -4,6 +4,8 @@ import { currentWeatherFor } from "@/lib/weather/current";
 import { currentTenantIdFor } from "@/lib/tenant-context";
 import { loadOwnAgents } from "@/lib/dashboard-overview";
 import { listOpenHandOffs } from "@/lib/agent-api/handoff";
+import { maybeDemoPulse } from "@/lib/demo/pulse";
+import { isDemoMode } from "@/lib/demo-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +20,12 @@ const PANEL_CLOUDS = 3;
  */
 export async function GET() {
   const user = await requireUser();
+  const tenantId = await currentTenantIdFor(user.id);
+  // Showcase only: something happens in the demo project now and then, so the
+  // dashboard's weather moments can be seen live.
+  if (tenantId && isDemoMode()) await maybeDemoPulse(tenantId).catch(() => null);
   const weather = await currentWeatherFor(user.id);
   if (!weather) return NextResponse.json({ weather: null });
-  const tenantId = await currentTenantIdFor(user.id);
   const [agents, handOffs] = tenantId
     ? await Promise.all([
         loadOwnAgents({ userId: user.id, tenantId }).catch(() => []),
@@ -38,6 +43,8 @@ export async function GET() {
         condition: forecast.condition,
         conditionLabel: forecast.conditionLabel,
         temperature: forecast.temperature,
+        merges: forecast.merges,
+        newReports: forecast.rain.count,
         headline: forecast.headline,
         clouds: clouds.slice(0, PANEL_CLOUDS).map((c) => ({ id: c.id, number: c.number, title: c.title, waitingLabel: c.waitingLabel })),
         cloudTotal: Math.max(0, forecast.cloudTotal - taken.size),
